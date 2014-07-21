@@ -1696,6 +1696,17 @@ static void *report_thread(void *arg)
 #endif
                     }
 
+#ifdef FALCON_DALIGNER_P
+                    if (apath->abpos > 24 && apath->bbpos > 24)
+                      continue;
+
+                    if (alen - apath->aepos > 24 && blen - apath->bepos > 24)
+                      continue;
+
+                    if (alen < 500 || blen < 500)
+                      continue;
+#endif  // FALCON_DALIGNER_P
+
                     if ((apath->aepos-apath->abpos) + (apath->bepos-apath->bbpos) >= MINOVER)
                       { if (doA)
                           { if (novla >= AOmax)
