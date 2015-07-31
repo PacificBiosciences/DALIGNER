@@ -283,6 +283,7 @@ int main(int argc, char *argv[])
       if (fread(&novl,sizeof(int64),1,input) != 1)
         SYSTEM_ERROR
       totl += novl;
+      if (VERBOSE) fprintf(stdout, "In file %s, there are %lld records\n", Catenate(pwd,"/",root,".las"), novl);
       if (fread(&mspace,sizeof(int),1,input) != 1)
         SYSTEM_ERROR
       if (i == 0)
