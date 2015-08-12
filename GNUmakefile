@@ -13,6 +13,8 @@ daligner: filter.o
 daligner_p: filter_p.o
 ${ALL}: align.o
 
+install:
+	cp -f ${ALL} ${PREFIX}/bin
 clean:
 	rm -f ${ALL}
 	rm -f ${DEPS}
