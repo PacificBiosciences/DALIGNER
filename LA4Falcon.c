@@ -48,7 +48,7 @@
 
 /*******************************************************************************************
  *
- *  Based on the original DBshow, this code is modified by Jason Chin to support generating
+ *  Based on the original LAshow.c, this code is modified by Jason Chin to support generating
  *    consensus sequences from daligner output
  *
  *  Last Mod:  July 2015
