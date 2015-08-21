@@ -46,6 +46,14 @@
  *
  *******************************************************************************************/
 
+/*******************************************************************************************
+ *
+ *  Based on the original LAshow.c, this code is modified by Jason Chin to support generating
+ *    consensus sequences from daligner output
+ *
+ *  Last Mod:  July 2015
+ *
+ *******************************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,6 +65,25 @@
 
 #include "DB.h"
 #include "align.h"
+
+typedef struct {
+    int r_id;
+    int t_o;
+    int t_s;
+    int t_e;
+    int t_l;
+} hit_record;
+
+hit_record * hits;
+
+static int compare_hits(const void  * h1, const void *h2) {
+    int ovl_len1;
+    int ovl_len2;
+    ovl_len1 = ((hit_record *) h1)->t_e - ((hit_record *) h1)->t_s;
+    ovl_len2 = ((hit_record *) h2)->t_e - ((hit_record *) h2)->t_s;
+    return ovl_len2 - ovl_len1;
+}
+
 
 static char *Usage[] =
     { "[-mfsocarUFM] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
@@ -88,7 +115,7 @@ int main(int argc, char *argv[])
   int     ISTWO;
   int     MAP;
   int     FALCON, OVERLAP, M4OVL;
-  int     SEED_MIN, SKIP;
+  int     SEED_MIN, MAX_HIT_COUNT, SKIP;
 
   //  Process options
 
@@ -111,6 +138,7 @@ int main(int argc, char *argv[])
     REFERENCE = 0;
     CARTOON   = 0;
     FLIP      = 0;
+    MAX_HIT_COUNT = 400;
 
     j = 1;
     for (i = 1; i < argc; i++)
@@ -130,6 +158,9 @@ int main(int argc, char *argv[])
             break;
           case 'H':
             ARG_POSITIVE(SEED_MIN,"seed threshold (in bp)")
+            break;
+          case 'n':
+            ARG_POSITIVE(MAX_HIT_COUNT, "max numer of supporting read ouput (used for FALCON consensus. default 400)")
             break;
         }
       else
@@ -374,12 +405,17 @@ int main(int argc, char *argv[])
     int        mn_wide, mx_wide;
     int        tp_wide;
     int        blast, match, seen, lhalf, rhalf;
+    int        hit_count;
 
     aln->path = &(ovl->path);
     if (ALIGN || REFERENCE || FALCON)
       { work = New_Work_Data();
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
+        if (FALCON) {
+            hits = calloc(sizeof(hit_record), 2048);
+            hit_count = 0;
+        }
       }
     else
       { abuffer = NULL;
@@ -582,22 +618,34 @@ int main(int argc, char *argv[])
                 skip_rest = 0;
             }
             if (p_aread != ovl -> aread ) {
+                int tmp_idx;
+                qsort( hits, hit_count, sizeof(hit_record), compare_hits ); 
+                for (tmp_idx = 0; tmp_idx < hit_count; tmp_idx++) {
+                    Load_Read(db2, hits[tmp_idx].r_id, bbuffer, 0);
+                    if (hits[tmp_idx].t_o) Complement_Seq(bbuffer, hits[tmp_idx].t_l );
+                    Upper_Read(bbuffer);
+                    strncpy( buffer, bbuffer + hits[tmp_idx].t_s, (int64) hits[tmp_idx].t_e - (int64) hits[tmp_idx].t_s );
+                    buffer[ (int64) hits[tmp_idx].t_e - (int64) hits[tmp_idx].t_s - 1] = '\0';
+                    printf("%08d %s\n", hits[tmp_idx].r_id, buffer);
+                }
+                hit_count = 0;
+
                 printf("+ +\n");
-                Load_Read(db1, ovl->aread,abuffer, 2);
+                Load_Read(db1, ovl->aread, abuffer, 2);
                 printf("%08d %s\n", ovl->aread, abuffer);
                 p_aread = ovl->aread;
                 skip_rest = 0;
             }
 
             if (skip_rest == 0) {
-                Load_Read(db2, ovl->bread, bbuffer, 0);
-                p_aread = ovl->aread;
-                if (COMP(aln->flags))
-                  Complement_Seq(bbuffer, aln->blen);
-                Upper_Read(bbuffer);
-                strncpy( buffer, bbuffer + ovl->path.bbpos, (int64) ovl->path.bepos - (int64) ovl->path.bbpos );
-                buffer[ (int64) ovl->path.bepos - (int64) ovl->path.bbpos - 1] = '\0';
-                printf("%08d %s", ovl->bread, buffer);
+                hits[hit_count].r_id = ovl->bread;
+                hits[hit_count].t_o = COMP(aln->flags);
+                hits[hit_count].t_s = ovl->path.bbpos;
+                hits[hit_count].t_e = ovl->path.bepos;
+                hits[hit_count].t_l = aln->blen;
+                hit_count ++;
+                if (hit_count > MAX_HIT_COUNT) skip_rest = 1;
+
 #undef TEST_ALN_OUT
 #ifdef TEST_ALN_OUT
                 {
@@ -617,7 +665,7 @@ int main(int argc, char *argv[])
                         printf("%d,", (int16) trace[u]);
                 }
 #endif
-                printf("\n");
+                //printf("\n");
                 if (SKIP == 1) {  //if SKIP = 0, then skip_rest is always 0
                     if ( ((int64) aln->alen < (int64) aln->blen) && ((int64) ovl->path.abpos < 1) && ((int64) aln->alen - (int64) ovl->path.aepos < 1) ) {
                         printf("* *\n");
@@ -706,8 +754,20 @@ int main(int argc, char *argv[])
       }
 
     if (FALCON)
-      { printf("+ +\n");
+      { 
+        qsort( hits, hit_count, sizeof(hit_record), compare_hits ); 
+        int tmp_idx;
+        for (tmp_idx = 0; tmp_idx < hit_count; tmp_idx++) {
+            Load_Read(db2, hits[tmp_idx].r_id, bbuffer, 0);
+            if (hits[tmp_idx].t_o) Complement_Seq(bbuffer, hits[tmp_idx].t_l );
+            Upper_Read(bbuffer);
+            strncpy( buffer, bbuffer + hits[tmp_idx].t_s, (int64) hits[tmp_idx].t_e - (int64) hits[tmp_idx].t_s );
+            buffer[ (int64) hits[tmp_idx].t_e - (int64) hits[tmp_idx].t_s - 1] = '\0';
+            printf("%08d %s\n", hits[tmp_idx].r_id, buffer);
+        }
+        printf("+ +\n");
         printf("- -\n");
+        free(hits);
       }
 
 
