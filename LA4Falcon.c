@@ -758,7 +758,7 @@ int main(int argc, char *argv[])
       { 
         qsort( hits, hit_count, sizeof(hit_record), compare_hits ); 
         int tmp_idx;
-        for (tmp_idx = 0; tmp_idx < hit_count; tmp_idx++) {
+        for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
             Load_Read(db2, hits[tmp_idx].r_id, bbuffer, 0);
             if (hits[tmp_idx].t_o) Complement_Seq(bbuffer, hits[tmp_idx].t_l );
             Upper_Read(bbuffer);
