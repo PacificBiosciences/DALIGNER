@@ -414,7 +414,7 @@ int main(int argc, char *argv[])
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
         if (FALCON) {
-            hits = calloc(sizeof(hit_record), 2048);
+            hits = calloc(sizeof(hit_record), 4096);
             hit_count = 0;
         }
       }
@@ -621,7 +621,7 @@ int main(int argc, char *argv[])
             if (p_aread != ovl -> aread ) {
                 int tmp_idx;
                 qsort( hits, hit_count, sizeof(hit_record), compare_hits ); 
-                for (tmp_idx = 0; tmp_idx < hit_count; tmp_idx++) {
+                for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
                     Load_Read(db2, hits[tmp_idx].r_id, bbuffer, 0);
                     if (hits[tmp_idx].t_o) Complement_Seq(bbuffer, hits[tmp_idx].t_l );
                     Upper_Read(bbuffer);
@@ -645,7 +645,7 @@ int main(int argc, char *argv[])
                 hits[hit_count].t_e = ovl->path.bepos;
                 hits[hit_count].t_l = aln->blen;
                 hit_count ++;
-                if (hit_count > MAX_HIT_COUNT) skip_rest = 1;
+                if (hit_count > MAX_HIT_COUNT * 2) skip_rest = 1;
 
 #undef TEST_ALN_OUT
 #ifdef TEST_ALN_OUT
