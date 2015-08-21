@@ -160,7 +160,8 @@ int main(int argc, char *argv[])
             ARG_POSITIVE(SEED_MIN,"seed threshold (in bp)")
             break;
           case 'n':
-            ARG_POSITIVE(MAX_HIT_COUNT, "max numer of supporting read ouput (used for FALCON consensus. default 400)")
+            ARG_POSITIVE(MAX_HIT_COUNT, "max numer of supporting read ouput (used for FALCON consensus. default 400, max: 2000)")
+            if (MAX_HIT_COUNT > 2000) MAX_HIT_COUNT = 2000; 
             break;
         }
       else
