@@ -204,6 +204,8 @@ typedef struct
     int64  sptr[NTHREADS*BPOWR];
   } Lex_Arg;
 
+#define VERY_VERBOSE 0
+
 static void *lex_thread(void *arg)
 { Lex_Arg    *data  = (Lex_Arg *) arg;
   int64      *sptr  = data->sptr;
@@ -217,7 +219,7 @@ static void *lex_thread(void *arg)
   uint64      c, b;
 
   n = data->end;
-  if (VERBOSE)
+  if (VERY_VERBOSE)
     { printf("\n ----");
       printf("\n shift=%d, LEX_last=%d, n=%d", shift, LEX_last, n);
       fflush(stdout);
@@ -282,7 +284,7 @@ static void *lex_thread(void *arg)
         for (i = data->beg; i < n; i++)
           { c = src[i].p1;
             x = tptr[c&BMASK]++;
-            if (VERBOSE)
+            if (VERY_VERBOSE)
             { printf("\n @=%p+%d i=%6d,c&=%3d,x=%3d,c=%d ", (void*)trg, (sizeof(Double)*x), i, (c&BMASK), x, c);
               fflush(stdout);
             }
@@ -298,7 +300,7 @@ static void *lex_thread(void *arg)
             sptr[((b >> qshift) & QMASK) + x/zsize] += 1;
           }
 
-  if (VERBOSE)
+  if (VERY_VERBOSE)
     { printf("\n Finished @%p n=%d", (void*)trg, n);
       fflush(stdout);
     }
