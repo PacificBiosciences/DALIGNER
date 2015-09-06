@@ -12,3 +12,6 @@
 /DB2Falcon
 /DB.so
 /daligner_p
+
+*.o
+*.d
