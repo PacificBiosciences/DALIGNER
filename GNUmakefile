@@ -1,8 +1,9 @@
-THISDIR:=$(abspath $(dir $(lastword ${MAKEFILE_LIST})))
+THISDIR:=$(abspath $(dir $(realpath $(lastword ${MAKEFILE_LIST}))))
+LIBDIRS?=${THISDIR}/../DAZZ_DB
 CFLAGS+= -O3 -Wall -Wextra -fno-strict-aliasing -Wno-unused-result
 CPPFLAGS+= -MMD -MP -I${THISDIR}/../DAZZ_DB
 LDLIBS+= -ldazzdb -lm -lpthread
-LDFLAGS+= -L${THISDIR}/../DAZZ_DB
+LDFLAGS+= $(patsubst %,-L%,${LIBDIRS})
 MOST = daligner HPCdaligner HPCmapper LAsort LAmerge LAsplit LAcat LAshow LAcheck LA4Falcon DB2Falcon
 ALL:=${MOST} daligner_p
 vpath %.c ${THISDIR}
