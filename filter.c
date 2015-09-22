@@ -221,7 +221,7 @@ static void *lex_thread(void *arg)
   n = data->end;
   if (VERY_VERBOSE)
     { printf("\n ----");
-      printf("\n shift=%d, LEX_last=%d, n=%d", shift, LEX_last, n);
+      printf("\n shift=%d, LEX_last=%d, n=%lld", shift, LEX_last, n);
       fflush(stdout);
     }
   if (shift >= 64)
@@ -285,7 +285,7 @@ static void *lex_thread(void *arg)
           { c = src[i].p1;
             x = tptr[c&BMASK]++;
             if (VERY_VERBOSE)
-            { printf("\n @=%p+%d i=%6d,c&=%3d,x=%3d,c=%d ", (void*)trg, (sizeof(Double)*x), i, (c&BMASK), x, c);
+            { printf("\n @=%p+%lld i=%6lld,c&=%3lld,x=%3lld,c=%lld ", (void*)trg, (sizeof(Double)*x), i, (c&BMASK), x, c);
               fflush(stdout);
             }
             trg[x] = src[i];
@@ -301,7 +301,7 @@ static void *lex_thread(void *arg)
           }
 
   if (VERY_VERBOSE)
-    { printf("\n Finished @%p n=%d", (void*)trg, n);
+    { printf("\n Finished @%p n=%lld", (void*)trg, n);
       fflush(stdout);
     }
   return (NULL);
@@ -761,7 +761,7 @@ void *Sort_Kmers(HITS_DB *block, int *len)
     { src = (KmerPos *) Malloc(sizeof(KmerPos)*(kmers+1),"Allocating Sort_Kmers vectors");
       trg = (KmerPos *) Malloc(sizeof(KmerPos)*(kmers+1),"Allocating Sort_Kmers vectors");
     }
-  if (VERBOSE) printf("\n Allocated %d of %d (%d bytes) at %p", (kmers+1), sizeof(KmerPos), (sizeof(KmerPos)*(kmers+1)), (void*)trg);
+  if (VERBOSE) printf("\n Allocated %d of %ld (%lu bytes) at %p", (kmers+1), sizeof(KmerPos), (sizeof(KmerPos)*(kmers+1)), (void*)trg);
   if (src == NULL || trg == NULL)
     exit (1);
 
