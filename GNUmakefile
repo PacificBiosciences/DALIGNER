@@ -9,6 +9,8 @@ ALL:=${MOST} daligner_p
 vpath %.c ${THISDIR}
 vpath %.a ${THISDIR}/../DAZZ_DB
 
+%: %.c
+
 all: ${ALL}
 daligner: filter.o
 daligner_p: filter_p.o
