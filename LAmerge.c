@@ -277,13 +277,13 @@ int main(int argc, char *argv[])
       input = Fopen(Catenate(pwd,"/",root,".las"),"r");
       if (input == NULL)
         exit (1);
-      free(pwd);
-      free(root);
 
       if (fread(&novl,sizeof(int64),1,input) != 1)
         SYSTEM_ERROR
       totl += novl;
       if (VERBOSE) fprintf(stdout, "In file %s, there are %lld records\n", Catenate(pwd,"/",root,".las"), novl);
+      free(pwd);
+      free(root);
       if (fread(&mspace,sizeof(int),1,input) != 1)
         SYSTEM_ERROR
       if (i == 0)
