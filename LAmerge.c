@@ -221,16 +221,16 @@ int main(int argc, char *argv[])
 
       pwd   = PathTo(argv[i+2]);
       root  = Root(argv[i+2],".las");
-      input = Fopen(Catenate(pwd,"/",root,".las"),"r");
+      input = Fopen(Catenate(pwd,"/",root,".las",NULL),"r");
       if (input == NULL)
         exit (1);
+      free(pwd);
+      free(root);
 
       if (fread(&novl,sizeof(int64),1,input) != 1)
         SYSTEM_ERROR
       totl += novl;
-      if (VERBOSE) fprintf(stdout, "In file %s, there are %lld records\n", Catenate(pwd,"/",root,".las"), novl);
-      free(pwd);
-      free(root);
+      if (VERBOSE) fprintf(stdout, "In file %s, there are %lld records\n", Catenate(pwd,"/",root,".las",NULL), novl);
       if (fread(&mspace,sizeof(int),1,input) != 1)
         SYSTEM_ERROR
       if (i == 0)
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
 
     pwd    = PathTo(argv[1]);
     root   = Root(argv[1],".las");
-    output = Fopen(Catenate(pwd,"/",root,".las"),"w");
+    output = Fopen(Catenate(pwd,"/",root,".las",NULL),"w");
     if (output == NULL)
       exit (1);
     free(pwd);

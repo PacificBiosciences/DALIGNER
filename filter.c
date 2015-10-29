@@ -215,7 +215,7 @@ static void *lex_thread(void *arg)
   n = data->end;
   if (VERY_VERBOSE)
     { printf("\n ----");
-      printf("\n shift=%d, LEX_last=%d, n=%lld", shift, LEX_last, n);
+      printf("\n shift=%d, LEX_last=%d, n=%d", shift, LEX_last, n);
       fflush(stdout);
     }
   if (shift >= 64)
@@ -279,7 +279,7 @@ static void *lex_thread(void *arg)
           { c = src[i].p1;
             x = tptr[c&BMASK]++;
             if (VERY_VERBOSE)
-            { printf("\n @=%p+%lld i=%6lld,c&=%3lld,x=%3lld,c=%lld ", (void*)trg, (sizeof(Double)*x), i, (c&BMASK), x, c);
+            { printf("\n @=%p+%d i=%6d,c&=%3d,x=%3d,c=%d ", (void*)trg, (sizeof(Double)*x), i, (c&BMASK), x, c);
               fflush(stdout);
             }
             trg[x] = src[i];
@@ -295,7 +295,7 @@ static void *lex_thread(void *arg)
           }
 
   if (VERY_VERBOSE)
-    { printf("\n Finished @%p n=%lld", (void*)trg, n);
+    { printf("\n Finished @%p n=%d", (void*)trg, n);
       fflush(stdout);
     }
   return (NULL);
@@ -336,13 +336,11 @@ static Double *lex_sort(int bytes[16], Double *src, Double *trg, Lex_Arg *parmx)
         { x = 0;
           for (i = 0; i < NTHREADS; i++)
             { parmx[i].beg = x;
-              if (LEX_zsize*(i+1) <= len) x = LEX_zsize*(i+1);
-              parmx[i].end = x;
+              parmx[i].end = x = LEX_zsize*(i+1);
               for (j = 0; j < BPOWR; j++)
                 parmx[i].tptr[j] = 0;
             }
           parmx[NTHREADS-1].end = len;
-          //assert(parmx[NTHREADS-1].end >= parmx[NTHREADS-1].beg);
 
           for (j = 0; j < BPOWR; j++)
             { k = (j << NSHIFT);
@@ -754,7 +752,7 @@ static KmerPos *sort_kmers(HITS_DB *block, int *len)
     { src = (KmerPos *) Malloc(sizeof(KmerPos)*(kmers+1),"Allocating sort_kmers vectors");
       trg = (KmerPos *) Malloc(sizeof(KmerPos)*(kmers+1),"Allocating sort_kmers vectors");
     }
-  if (VERBOSE) printf("\n Allocated %d of %ld (%lu bytes) at %p", (kmers+1), sizeof(KmerPos), (sizeof(KmerPos)*(kmers+1)), (void*)trg);
+  if (VERBOSE) printf("\n Allocated %d of %d (%d bytes) at %p", (kmers+1), sizeof(KmerPos), (sizeof(KmerPos)*(kmers+1)), (void*)trg);
   if (src == NULL || trg == NULL)
     exit (1);
 
@@ -1796,14 +1794,14 @@ void Match_Filter(char *aname, HITS_DB *ablock, char *bname, HITS_DB *bblock,
         parmr[i].aspec = aspec;
 
         parmr[i].ofile1 =
-             Fopen(Catenate(aname,".",bname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+             Fopen(Catenate(aname,".",bname,(comp?".C":".N"),Int_To_Str(i),".las",NULL),"w");
         if (parmr[i].ofile1 == NULL)
           exit (1);
         if (self)
           parmr[i].ofile2 = parmr[i].ofile1;
         else if (SYMMETRIC)
           { parmr[i].ofile2 = 
-                Fopen(Catenate(bname,".",aname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+                Fopen(Catenate(bname,".",aname,(comp?".C":".N"),Int_To_Str(i),".las",NULL),"w");
             if (parmr[i].ofile2 == NULL)
               exit (1);
           }
@@ -1846,12 +1844,12 @@ zerowork:
     nhits  = 0;
     tspace = Trace_Spacing(aspec);
     for (i = 0; i < NTHREADS; i++)
-      { ofile = Fopen(Catenate(aname,".",bname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+      { ofile = Fopen(Catenate(aname,".",bname,(comp?".C":".N"),Int_To_Str(i),".las",NULL),"w");
         fwrite(&nhits,sizeof(int64),1,ofile);
         fwrite(&tspace,sizeof(int),1,ofile);
         fclose(ofile);
         if (! self)
-          { ofile = Fopen(Catenate(bname,".",aname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+          { ofile = Fopen(Catenate(bname,".",aname,(comp?".C":".N"),Int_To_Str(i),".las",NULL),"w");
             fwrite(&nhits,sizeof(int64),1,ofile);
             fwrite(&tspace,sizeof(int),1,ofile);
             fclose(ofile);

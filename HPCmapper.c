@@ -230,9 +230,9 @@ int main(int argc, char *argv[])
   { int i, nfiles;
     FILE *dbvis;
 
-    dbvis = fopen(Catenate(pwd1,"/",root1,".dam"),"r");
+    dbvis = fopen(Catenate(pwd1,"/",root1,".dam",NULL),"r");
     if (dbvis == NULL)
-      { dbvis = Fopen(Catenate(pwd1,"/",root1,".db"),"r");
+      { dbvis = Fopen(Catenate(pwd1,"/",root1,".db",NULL),"r");
         if (dbvis == NULL)
           exit (1);
       }
@@ -270,9 +270,9 @@ int main(int argc, char *argv[])
   { int i, nfiles;
     FILE *dbvis;
 
-    dbvis = fopen(Catenate(pwd2,"/",root2,".dam"),"r");
+    dbvis = fopen(Catenate(pwd2,"/",root2,".dam",NULL),"r");
     if (dbvis == NULL)
-      { dbvis = Fopen(Catenate(pwd2,"/",root2,".db"),"r");
+      { dbvis = Fopen(Catenate(pwd2,"/",root2,".db",NULL),"r");
         if (dbvis == NULL)
           exit (1);
       }
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
       }
 
     if (fblock > 1)
-      { file = fopen(Catenate(root1,".",root2,Numbered_Suffix(".",fblock-1,".las")),"r");
+      { file = fopen(Catenate(root1,".",root2,".",Int_To_Str(fblock-1),".las",NULL),"r");
         if (file == NULL)
           { fprintf(stderr,"%s: File %s.%s.%d.las should already be present!\n",
                            Prog_Name,root1,root2,fblock-1);
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
           fclose(file);
       }
     if (useblock2)
-      { file = fopen(Catenate(root1,".",root2,Numbered_Suffix(".",fblock,".las")),"r");
+      { file = fopen(Catenate(root1,".",root2,".",Int_To_Str(fblock),".las",NULL),"r");
         if (file != NULL)
           { fprintf(stderr,"%s: File %s.%s.%d.las should not yet exist!\n",
                            Prog_Name,root1,root2,fblock);
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
           }
       }
     else
-      { file = fopen(Catenate(root1,".",root2,".las"),"r");
+      { file = fopen(Catenate(root1,".",root2,".las",NULL),"r");
         if (file != NULL)
           { fprintf(stderr,"%s: File %s.%s.las should not yet exist!\n",
                            Prog_Name,root1,root2);

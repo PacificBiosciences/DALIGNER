@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
     if (argc > 3)
       { pwd   = PathTo(argv[3]);
         root  = Root(argv[3],".las");
-        if ((input = fopen(Catenate(pwd,"/",root,".las"),"r")) != NULL)
+        if ((input = fopen(Catenate(pwd,"/",root,".las",NULL),"r")) != NULL)
           { ISTWO = 1;
             fclose(input);
             status = Open_DB(argv[2],db2);
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
 
     pwd   = PathTo(argv[2+ISTWO]);
     root  = Root(argv[2+ISTWO],".las");
-    over  = Catenate(pwd,"/",root,".las");
+    over  = Catenate(pwd,"/",root,".las",NULL);
     input = Fopen(over,"r");
     if (input == NULL)
       exit (1);

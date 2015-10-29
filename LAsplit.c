@@ -87,9 +87,9 @@ int main(int argc, char *argv[])
           root  = Root(argv[2],".dam");
         else
           root  = Root(argv[2],".db");
-        dbvis = fopen(Catenate(pwd,"/",root,".dam"),"r");
+        dbvis = fopen(Catenate(pwd,"/",root,".dam",NULL),"r");
         if (dbvis == NULL)
-          { dbvis = fopen(Catenate(pwd,"/",root,".db"),"r");
+          { dbvis = fopen(Catenate(pwd,"/",root,".db",NULL),"r");
             if (dbvis == NULL)
               { fprintf(stderr,"%s: Second argument '%s' is not an integer or a DB\n",
                                Prog_Name,argv[2]);
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 
     hgh = 0;
     for (i = 0; i < parts; i++)
-      { output = Fopen(Catenate(pwd,"/",root,Numbered_Suffix(".",i+1,".las")),"w");
+      { output = Fopen(Catenate(pwd,"/",root,".",Int_To_Str(i+1),".las",NULL),"w");
         if (output == NULL)
           exit (1);
 
