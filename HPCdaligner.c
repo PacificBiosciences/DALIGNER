@@ -231,9 +231,9 @@ int main(int argc, char *argv[])
   { int i, nfiles;
     FILE *dbvis;
 
-    dbvis = fopen(Catenate(pwd,"/",root,".dam"),"r");
+    dbvis = fopen(Catenate(pwd,"/",root,".dam",NULL),"r");
     if (dbvis == NULL)
-      { dbvis = Fopen(Catenate(pwd,"/",root,".db"),"r");
+      { dbvis = Fopen(Catenate(pwd,"/",root,".db",NULL),"r");
         if (dbvis == NULL)
           exit (1);
       }
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       }
 
     if (fblock > 1)
-      { file = fopen(Catenate(root,Numbered_Suffix(".",fblock-1,".las"),"",""),"r");
+      { file = fopen(Catenate(root,".",Int_To_Str(fblock-1),".las",NULL),"r");
         if (file == NULL)
           { fprintf(stderr,"%s: File %s.%d.las should already be present!\n",
                            Prog_Name,root,fblock-1);
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
         else
           fclose(file);
       }
-    file = fopen(Catenate(root,Numbered_Suffix(".",fblock,".las"),"",""),"r");
+    file = fopen(Catenate(root,".",Int_To_Str(fblock),".las",NULL),"r");
     if (file != NULL)
       { fprintf(stderr,"%s: File %s.%d.las should not yet exist!\n",
                        Prog_Name,root,fblock);

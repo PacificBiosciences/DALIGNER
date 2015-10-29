@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     mspace = 0;
     tbytes = sizeof(uint8);
     for (i = 0; 1; i++)
-      { char *name = Catenate(pwd,"/",root,Numbered_Suffix(".",i+1,".las"));
+      { char *name = Catenate(pwd,"/",root,".",Int_To_Str(i+1),".las",NULL);
         if ((input = fopen(name,"r")) == NULL) break;
 
         if (fread(&povl,sizeof(int64),1,input) != 1)
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     otop = oblock + bsize;
 
     for (i = 0; 1; i++)
-      { char *name = Catenate(pwd,"/",root,Numbered_Suffix(".",i+1,".las"));
+      { char *name = Catenate(pwd,"/",root,".",Int_To_Str(i+1),".las",NULL);
         if ((input = fopen(name,"r")) == NULL) break;
 
         if (fread(&povl,sizeof(int64),1,input) != 1)

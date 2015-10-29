@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 
     pwd    = PathTo(argv[2]);
     root   = Root(argv[2],".las");
-    if ((input = fopen(Catenate(pwd,"/",root,".las"),"r")) == NULL)
+    if ((input = fopen(Catenate(pwd,"/",root,".las",NULL),"r")) == NULL)
       { ISTWO = 1;
         if (argc <= 3)
           { fprintf(stderr,"Usage: %s %s\n",Prog_Name,Usage);
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
         pwd    = PathTo(argv[i]);
         root   = Root(argv[i],".las");
-        if ((input = Fopen(Catenate(pwd,"/",root,".las"),"r")) == NULL)
+        if ((input = Fopen(Catenate(pwd,"/",root,".las",NULL),"r")) == NULL)
           goto error;
 
         if (fread(&novl,sizeof(int64),1,input) != 1)

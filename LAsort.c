@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 
         pwd   = PathTo(argv[i]);
         root  = Root(argv[i],".las");
-        name  = Catenate(pwd,"/",root,".las");
+        name  = Catenate(pwd,"/",root,".las",NULL);
         input = Fopen(name,"r");
         if (input == NULL)
           exit (1);
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
             fflush(stdout);
           }
 
-        foutput = Fopen(Catenate(pwd,"/",root,".S.las"),"w");
+        foutput = Fopen(Catenate(pwd,"/",root,".S.las",NULL),"w");
         if (foutput == NULL)
           exit (1);
 

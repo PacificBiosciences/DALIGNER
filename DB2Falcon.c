@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
     pwd    = PathTo(argv[1]);
     root   = Root(argv[1],".db");
-    dbfile = Fopen(Catenate(pwd,"/",root,".db"),"r");
+    dbfile = Fopen(Catenate(pwd,"/",root,".db",NULL),"r");
     free(pwd);
     free(root);
     if (dbfile == NULL)
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     reads = db->reads;
     read  = New_Read_Buffer(db);
     first = 0;
-    if ((ofile = Fopen(Catenate(".","/","preads4falcon",".fasta"),"w")) == NULL)
+    if ((ofile = Fopen("preads4falcon.fasta","w")) == NULL)
       exit (1);
     for (f = 0; f < nfiles; f++)
       { int   i, last;
