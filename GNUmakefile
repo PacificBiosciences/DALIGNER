@@ -4,7 +4,7 @@ CFLAGS+= -O3 -Wall -Wextra -fno-strict-aliasing -Wno-unused-result
 CPPFLAGS+= -MMD -MP -I${THISDIR}/../DAZZ_DB
 LDLIBS+= -ldazzdb -lm -lpthread
 LDFLAGS+= $(patsubst %,-L%,${LIBDIRS})
-MOST = daligner HPCdaligner HPCmapper LAsort LAmerge LAsplit LAcat LAshow LAcheck LA4Falcon DB2Falcon
+MOST = daligner HPCdaligner HPCmapper LAsort LAmerge LAsplit LAcat LAshow LAcheck LA4Falcon LA4Ice DB2Falcon
 ALL:=${MOST} daligner_p
 vpath %.c ${THISDIR}
 vpath %.a ${THISDIR}/../DAZZ_DB
