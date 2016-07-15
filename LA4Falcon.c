@@ -66,6 +66,12 @@
 #include "DB.h"
 #include "align.h"
 
+// debugging
+#include  <time.h>
+#include  <locale.h>
+#include  <stdbool.h>
+// end debugging
+
 typedef struct {
     int r_id;
     int score;
@@ -465,6 +471,15 @@ int main(int argc, char *argv[])
 
     //  For each record do
 
+
+    // debugging
+    setlocale(LC_NUMERIC, "");
+    fprintf( stderr, "about to go into loop with novl = %lld %'d\n", novl, (int) novl );
+    time_t timeLast;
+    time( &timeLast );
+    // end debugging
+
+
     blast = -1;
     match = 0;
     seen  = 0;
@@ -473,7 +488,25 @@ int main(int argc, char *argv[])
 
        //  Read it in
 
-      { Read_Overlap(input,ovl);
+      { 
+
+         // debugging
+         time_t timeCurrent;
+         time( &timeCurrent );
+         double diff_t = difftime( timeCurrent, timeLast );
+
+
+         if ( ( diff_t > 60.0 ) || ( j < 100) || ( (j < 1000) && ( j % 100 == 0 ) ) ) {
+            time_t mytime = time( NULL );
+            fprintf( stderr, "before Read_Overlap record j = %'d out of %'d %lld at %s", j, (int) novl, novl, ctime( &mytime )  );
+            fflush( stderr );
+            timeLast = timeCurrent;
+         }
+         // end debugging
+
+         Read_Overlap(input,ovl);
+
+
         if (ovl->path.tlen > tmax)
           { tmax = ((int) 1.2*ovl->path.tlen) + 100;
             trace = (uint16 *) Realloc(trace,sizeof(uint16)*tmax,"Allocating trace vector");
@@ -766,7 +799,13 @@ int main(int argc, char *argv[])
             Print_Number(tps,tp_wide,stdout);
             printf(" trace pts)\n");
           }
-      }
+      } /*      for (j = 0; j < novl; j++) */
+
+    // debugging
+    time_t mytime = time( NULL );
+    fprintf( stderr, "completed loop record j = %'d out of %'d %lld at %s", j, (int) novl, novl, ctime( &mytime )  );
+    // end debugging
+
 
     if (FALCON)
       { 
