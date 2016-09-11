@@ -83,6 +83,7 @@ hit_record * hits;
 
 #define MIN(X,Y)  ((X) < (Y)) ? (X) : (Y) 
 
+/*
 static int compare_hits(const void  * h1, const void *h2) {
     return ((hit_record *) h2)->score - ((hit_record *) h1)->score;
 }
@@ -121,6 +122,7 @@ static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char *b
     }
     printf("+ +\n");
 }
+*/
 
 // Allows us to group overlaps between a pair of a/b reads as a unit, one per 
 // direction (if applicable).  beg/end will point to the same overlap when 
@@ -129,19 +131,21 @@ typedef struct {
     Overlap beg;
     Overlap end;
     int score;
+    int blen;
 } OverlapGroup;
 
-OverlapGroup *ovlgrp;
+OverlapGroup *ovlgrps;
 
-
-static int compare_ovlgrps(const OverlapGroup *grp1, const OverlapGroup *grp2) {
-    return grp2->score - grp1->score;
+static int compare_ovlgrps(const void *grp1, const void *grp2) {
+    return ((OverlapGroup *)grp2)->score - ((OverlapGroup *)grp1)->score;
 }
 
 static bool belongs(OverlapGroup *grp, const Overlap *ovl) {
     Overlap *prev = &grp->end;
     return prev->flags == ovl->flags 
-        &&(ovl->path.abpos-prev->path.aepos) < 1000;
+        &&(ovl->path.abpos>prev->path.aepos)
+        &&(ovl->path.bbpos>prev->path.bepos)
+        &&(ovl->path.abpos-prev->path.aepos) < 251;
 }
 
 // Add a new overlap to a new or existing overlap group.
@@ -150,18 +154,19 @@ static bool belongs(OverlapGroup *grp, const Overlap *ovl) {
 static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int count) {
     int added = false;
     // we assume breads are in order
-    if (ovlgrp[count].beg.bread != ovl->bread) {
+    if (ovlgrps[count].beg.bread != ovl->bread) {
         // Haven't seen this bread yet, move to new overlap group
-        OverlapGroup *next = &ovlgrp[count+1];
+        OverlapGroup *next = &ovlgrps[count+1];
         next->beg = *ovl;
         next->end = *ovl;
+        next->blen = aln->blen;
         const Path *p = &ovl->path;
         int olen = p->bepos - p->bbpos;
         int hlen = MIN(p->abpos, p->bbpos) + MIN(aln->alen - p->aepos,aln->blen - p->bepos);
         next->score = olen - hlen;
         added = true;
     } else {
-        OverlapGroup *curr = &ovlgrp[count];
+        OverlapGroup *curr = &ovlgrps[count];
         // Seen, should we combine it with the previous overlap group or move 
         // on to the next?
         if (belongs(curr, ovl)) {
@@ -174,9 +179,10 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
                        MIN(aln->alen - end->path.aepos,aln->blen - end->path.bepos);
             curr->score = olen - hlen; 
         } else {
-            OverlapGroup *next = &ovlgrp[count+1];
+            OverlapGroup *next = &ovlgrps[count+1];
             next->beg = *ovl;
             next->end = *ovl;
+            next->blen = aln->blen;
             const Path *p = &ovl->path;
             int olen = p->bepos - p->bbpos;
             int hlen = MIN(p->abpos, p->bbpos) + MIN(aln->alen - p->aepos,aln->blen - p->bepos);
@@ -185,6 +191,26 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
         }
     }
     return added;
+}
+
+static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
+    int tmp_idx;
+    qsort(ovlgrps, hit_count, sizeof(OverlapGroup), compare_ovlgrps); 
+    for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
+        OverlapGroup *grp = &ovlgrps[tmp_idx];
+        Load_Read(db2, grp->end.bread, bbuffer, 0);
+        if (grp->end.flags) Complement_Seq(bbuffer, grp->blen );
+        Upper_Read(bbuffer);
+        int64 const rlen = (int64)(grp->end.path.bepos) - (int64)(grp->beg.path.bbpos);
+        if (rlen < bsize) {
+            strncpy( buffer, bbuffer + grp->beg.path.bbpos, rlen );
+            buffer[rlen - 1] = '\0';
+            printf("%08d %s\n", grp->end.bread, buffer);
+        } else {
+            fprintf(stderr, "[WARNING]Skipping super-long read %08d, len=%lld, buf=%lld\n", grp->end.bread, rlen, bsize);
+        }
+    }
+    printf("+ +\n");
 }
 
 static char *Usage[] =
@@ -522,7 +548,7 @@ int main(int argc, char *argv[])
         bbuffer = New_Read_Buffer(db2);
         if (FALCON) {
             //hits = calloc(sizeof(hit_record), MAX_OVERLAPS+1);
-            ovlgrp = calloc(sizeof(OverlapGroup), MAX_OVERLAPS+1);
+            ovlgrps = calloc(sizeof(OverlapGroup), MAX_OVERLAPS+1);
             hit_count = 0;
         }
       }
@@ -727,7 +753,7 @@ int main(int argc, char *argv[])
                 skip_rest = 0;
             }
             if (p_aread != ovl -> aread ) {
-                print_hits(hit_count, db2, bbuffer, buffer, MAX_HIT_COUNT);
+                print_hits(hit_count, db2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
                 hit_count = 0;
 
                 Load_Read(db1, ovl->aread, abuffer, 2);
@@ -851,9 +877,10 @@ int main(int argc, char *argv[])
 
     if (FALCON)
       { 
-        print_hits(hit_count, db2, bbuffer, buffer, MAX_HIT_COUNT);
+        print_hits(hit_count, db2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
         printf("- -\n");
-        free(hits);
+        //free(hits);
+        free(ovlgrps);
       }
 
 
