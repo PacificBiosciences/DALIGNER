@@ -143,6 +143,8 @@ static int compare_ovlgrps(const void *grp1, const void *grp2) {
 static bool belongs(OverlapGroup *grp, const Overlap *ovl) {
     Overlap *prev = &grp->end;
     return prev->flags == ovl->flags 
+        &&(ovl->path.abpos>prev->path.aepos)
+        &&(ovl->path.bbpos>prev->path.bepos)
         &&(ovl->path.abpos-prev->path.aepos) < 251;
 }
 
@@ -168,19 +170,14 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
         // Seen, should we combine it with the previous overlap group or move 
         // on to the next?
         if (belongs(curr, ovl)) {
-            Overlap *prev = &curr->end;
-            // Only combine if it does not overlap with previous
-            if ((ovl->path.abpos > prev->path.aepos) &&
-                (ovl->path.bbpos < prev->path.bepos) ) {
-                curr->end = *ovl;
-                // rescore
-                Overlap *beg = &curr->beg;
-                Overlap *end = &curr->end;
-                int olen = end->path.bepos - beg->path.bbpos;
-                int hlen = MIN(beg->path.abpos, beg->path.bbpos) +
-                    MIN(aln->alen - end->path.aepos,aln->blen - end->path.bepos);
-                curr->score = olen - hlen;
-            }
+            curr->end = *ovl;
+            // rescore
+            Overlap *beg = &curr->beg;
+            Overlap *end = &curr->end;
+            int olen = end->path.bepos - beg->path.bbpos;
+            int hlen = MIN(beg->path.abpos, beg->path.bbpos) +
+                       MIN(aln->alen - end->path.aepos,aln->blen - end->path.bepos);
+            curr->score = olen - hlen; 
         } else {
             OverlapGroup *next = &ovlgrps[count+1];
             next->beg = *ovl;
