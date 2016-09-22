@@ -67,62 +67,11 @@
 #include "DB.h"
 #include "align.h"
 
-//#define MAX_OVERLAPS 50000  // original value
-#define MAX_OVERLAPS 25000
-
-typedef struct {
-    int r_id;
-    int score;
-    int t_o;
-    int t_s;
-    int t_e;
-    int t_l;
-} hit_record;
-
-hit_record * hits;
+#define MAX_OVERLAPS 50000
 
 #define MIN(X,Y)  ((X) < (Y)) ? (X) : (Y) 
 
-/*
-static int compare_hits(const void  * h1, const void *h2) {
-    return ((hit_record *) h2)->score - ((hit_record *) h1)->score;
-}
-
-static bool add_hit(const Alignment *aln, const Overlap *ovl, const int count) {
-    int ovl_len, overhang_len, score;
-    ovl_len = ovl->path.bepos - ovl->path.bbpos;
-    overhang_len = MIN( ovl->path.abpos, ovl->path.bbpos );
-    overhang_len +=  MIN(  aln->alen - ovl->path.aepos,  aln->blen - ovl->path.bepos);
-    score = ovl_len - overhang_len;
-    hit_record *hit = &hits[count];
-    hit->r_id = ovl->bread;
-    hit->t_o = COMP(aln->flags);
-    hit->t_s = ovl->path.bbpos;
-    hit->t_e = ovl->path.bepos;
-    hit->t_l = aln->blen;
-    hit->score = score; 
-    return true;
-}
-
-static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char *buffer, const int MAX_HIT_COUNT) {
-    int tmp_idx;
-    qsort( hits, hit_count, sizeof(hit_record), compare_hits ); 
-    for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
-        Load_Read(db2, hits[tmp_idx].r_id, bbuffer, 0);
-        if (hits[tmp_idx].t_o) Complement_Seq(bbuffer, hits[tmp_idx].t_l );
-        Upper_Read(bbuffer);
-        int64 const rlen = (int64)(hits[tmp_idx].t_e) - (int64)(hits[tmp_idx].t_s);
-        if (rlen < (int64)sizeof(buffer)) {
-            strncpy( buffer, bbuffer + hits[tmp_idx].t_s, rlen );
-            buffer[rlen - 1] = '\0';
-            printf("%08d %s\n", hits[tmp_idx].r_id, buffer);
-        } else {
-            fprintf(stderr, "[WARNING]Skipping super-long read %08d, len=%lld\n", hits[tmp_idx].r_id, rlen);
-        }
-    }
-    printf("+ +\n");
-}
-*/
+static bool GROUP = false;
 
 // Allows us to group overlaps between a pair of a/b reads as a unit, one per 
 // direction (if applicable).  beg/end will point to the same overlap when 
@@ -148,14 +97,15 @@ static bool belongs(OverlapGroup *grp, const Overlap *ovl) {
         &&(ovl->path.abpos-prev->path.aepos) < 251;
 }
 
-// Add a new overlap to a new or existing overlap group.
+// Add a new overlap to a new or existing overlap group. Always adds when group
+// flag is false, effectively greating groups of 1.
 // Returns 1 if added as a new overlap group, otherwise 0.
 // caller keeps track of count
 static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int count) {
     int added = false;
     // we assume breads are in order
-    if (ovlgrps[count].beg.bread != ovl->bread) {
-        // Haven't seen this bread yet, move to new overlap group
+    if (!GROUP || count < 0 || ovlgrps[count].beg.bread != ovl->bread) {
+        // Haven't seen this bread yet (or we're not grouping), move to new overlap group
         OverlapGroup *next = &ovlgrps[count+1];
         next->beg = *ovl;
         next->end = *ovl;
@@ -199,7 +149,7 @@ static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char bu
     for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
         OverlapGroup *grp = &ovlgrps[tmp_idx];
         Load_Read(db2, grp->end.bread, bbuffer, 0);
-        if (grp->end.flags) Complement_Seq(bbuffer, grp->blen );
+        if (COMP(grp->end.flags)) Complement_Seq(bbuffer, grp->blen );
         Upper_Read(bbuffer);
         int64 const rlen = (int64)(grp->end.path.bepos) - (int64)(grp->beg.path.bbpos);
         if (rlen < bsize) {
@@ -214,7 +164,7 @@ static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char bu
 }
 
 static char *Usage[] =
-    { "[-mfsocarUFM] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
+    { "[-mfsocargUFM] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
       "    <src1:db|dam> [ <src2:db|dam> ] <align:las> [ <reads:FILE> | <reads:range> ... ]"
     };
 
@@ -274,7 +224,7 @@ int main(int argc, char *argv[])
       if (argv[i][0] == '-')
         switch (argv[i][1])
         { default:
-            ARG_FLAGS("smfocarUFM")
+            ARG_FLAGS("smfocargUFM")
             break;
           case 'i':
             ARG_NON_NEGATIVE(INDENT,"Indent")
@@ -307,6 +257,7 @@ int main(int argc, char *argv[])
     M4OVL     = flags['m'];
     FALCON    = flags['f'];
     SKIP      = flags['s'];
+    GROUP     = flags['g'];
 
     if (argc <= 2)
       { fprintf(stderr,"Usage: %s %s\n",Prog_Name,Usage[0]);
@@ -547,9 +498,8 @@ int main(int argc, char *argv[])
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
         if (FALCON) {
-            //hits = calloc(sizeof(hit_record), MAX_OVERLAPS+1);
             ovlgrps = calloc(sizeof(OverlapGroup), MAX_OVERLAPS+1);
-            hit_count = 0;
+            hit_count = -1;
         }
       }
     else
@@ -754,7 +704,7 @@ int main(int argc, char *argv[])
             }
             if (p_aread != ovl -> aread ) {
                 print_hits(hit_count, db2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
-                hit_count = 0;
+                hit_count = -1;
 
                 Load_Read(db1, ovl->aread, abuffer, 2);
                 printf("%08d %s\n", ovl->aread, abuffer);
@@ -763,7 +713,6 @@ int main(int argc, char *argv[])
             }
 
             if (skip_rest == 0) {
-                //if (add_hit(aln, ovl, hit_count))
                 if (add_overlap(aln, ovl, hit_count))
                     hit_count ++;
                 if (hit_count > MAX_OVERLAPS) skip_rest = 1;
@@ -879,7 +828,6 @@ int main(int argc, char *argv[])
       { 
         print_hits(hit_count, db2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
         printf("- -\n");
-        //free(hits);
         free(ovlgrps);
       }
 
