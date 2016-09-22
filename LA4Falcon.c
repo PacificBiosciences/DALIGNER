@@ -146,7 +146,7 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
 static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
     int tmp_idx;
     qsort(ovlgrps, hit_count, sizeof(OverlapGroup), compare_ovlgrps); 
-    for (tmp_idx = 0; tmp_idx < hit_count && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
+    for (tmp_idx = 0; tmp_idx < (hit_count+1) && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
         OverlapGroup *grp = &ovlgrps[tmp_idx];
         Load_Read(db2, grp->end.bread, bbuffer, 0);
         if (COMP(grp->end.flags)) Complement_Seq(bbuffer, grp->blen );
@@ -551,7 +551,6 @@ int main(int argc, char *argv[])
     seen  = 0;
     lhalf = rhalf = 0;
     for (j = 0; j < novl; j++)
-
        //  Read it in
 
       { Read_Overlap(input,ovl);
@@ -715,7 +714,9 @@ int main(int argc, char *argv[])
             if (skip_rest == 0) {
                 if (add_overlap(aln, ovl, hit_count))
                     hit_count ++;
-                if (hit_count > MAX_OVERLAPS) skip_rest = 1;
+
+                if (hit_count > MAX_OVERLAPS)
+                    skip_rest = 1;
 
 #undef TEST_ALN_OUT
 #ifdef TEST_ALN_OUT
@@ -824,7 +825,7 @@ int main(int argc, char *argv[])
           }
       }
 
-    if (FALCON)
+    if (FALCON && hit_count != -1)
       { 
         print_hits(hit_count, db2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
         printf("- -\n");
