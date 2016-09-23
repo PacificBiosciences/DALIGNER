@@ -112,7 +112,8 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
         next->blen = aln->blen;
         const Path *p = &ovl->path;
         int olen = p->bepos - p->bbpos;
-        int hlen = MIN(p->abpos, p->bbpos) + MIN(aln->alen - p->aepos,aln->blen - p->bepos);
+        int hlen = (MIN(p->abpos, p->bbpos)) + 
+                   (MIN(aln->alen - p->aepos,aln->blen - p->bepos));
         next->score = olen - hlen;
         added = true;
     } else {
@@ -125,8 +126,8 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
             Overlap *beg = &curr->beg;
             Overlap *end = &curr->end;
             int olen = end->path.bepos - beg->path.bbpos;
-            int hlen = MIN(beg->path.abpos, beg->path.bbpos) +
-                       MIN(aln->alen - end->path.aepos,aln->blen - end->path.bepos);
+            int hlen = (MIN(beg->path.abpos, beg->path.bbpos)) +
+                       (MIN(aln->alen - end->path.aepos,aln->blen - end->path.bepos));
             curr->score = olen - hlen; 
         } else {
             OverlapGroup *next = &ovlgrps[count+1];
@@ -135,7 +136,7 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
             next->blen = aln->blen;
             const Path *p = &ovl->path;
             int olen = p->bepos - p->bbpos;
-            int hlen = MIN(p->abpos, p->bbpos) + MIN(aln->alen - p->aepos,aln->blen - p->bepos);
+            int hlen = (MIN(p->abpos, p->bbpos)) + (MIN(aln->alen - p->aepos,aln->blen - p->bepos));
             next->score = olen - hlen;
             added = true;
         }
