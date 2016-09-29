@@ -146,7 +146,7 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
 
 static void print_hits(const int hit_count, HITS_DB *db2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
     int tmp_idx;
-    qsort(ovlgrps, hit_count, sizeof(OverlapGroup), compare_ovlgrps); 
+    qsort(ovlgrps, (hit_count+1), sizeof(OverlapGroup), compare_ovlgrps); 
     for (tmp_idx = 0; tmp_idx < (hit_count+1) && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
         OverlapGroup *grp = &ovlgrps[tmp_idx];
         Load_Read(db2, grp->end.bread, bbuffer, 0);
