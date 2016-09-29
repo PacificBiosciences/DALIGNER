@@ -716,7 +716,7 @@ int main(int argc, char *argv[])
                 if (add_overlap(aln, ovl, hit_count))
                     hit_count ++;
 
-                if (hit_count > MAX_OVERLAPS)
+                if ((hit_count+1) > MAX_OVERLAPS)
                     skip_rest = 1;
 
 #undef TEST_ALN_OUT
