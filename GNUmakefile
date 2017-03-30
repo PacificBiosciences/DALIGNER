@@ -15,6 +15,7 @@ vpath %.a ${THISDIR}/../DAZZ_DB
 all: ${ALL}
 daligner: filter.o
 daligner_p: filter_p.o
+LA4Falcon: DBX.o
 ${ALL}: align.o
 
 install:
