@@ -62,6 +62,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// debugging
+#include  <time.h>
+#include  <locale.h>
+#include  <stdbool.h>
+// end debugging
+
+
 
 #define MAX_OVERLAPS 50000
 
@@ -175,7 +182,20 @@ static int ORDER(const void *l, const void *r)
 }
 
 int main(int argc, char *argv[])
-{ HITS_DBX   _dbx1, *dbx1 = &_dbx1;
+{ 
+   // debugging
+
+   fprintf( stderr, "\nprinting command line arguments:\n" );
+   int i;
+   for (i = 0; i < argc; i++) {
+      fprintf(stderr, "%s ", argv[i]);
+   }
+   fprintf( stderr, "\ndone printing command line arguments\n" );
+
+   // end debugging
+
+
+  HITS_DBX   _dbx1, *dbx1 = &_dbx1;
   HITS_DBX   _dbx2, *dbx2 = &_dbx2;
   HITS_DB *db1 = &dbx1->db;
   HITS_DB *db2 = &dbx2->db;
@@ -552,6 +572,13 @@ int main(int argc, char *argv[])
 
     //  For each record do
 
+    // debugging
+    setlocale(LC_NUMERIC, "");
+    fprintf( stderr, "\nabout to go into loop with novl = %lld %'d %s\n", novl, (int) novl, argv[3] );
+    time_t timeLast;
+    time( &timeLast );
+    // end debugging
+
     blast = -1;
     match = 0;
     seen  = 0;
@@ -559,7 +586,25 @@ int main(int argc, char *argv[])
     for (j = 0; j < novl; j++)
        //  Read it in
 
-      { Read_Overlap(input,ovl);
+      { 
+
+         // debugging
+         time_t timeCurrent;
+         time( &timeCurrent );
+         double diff_t = difftime( timeCurrent, timeLast );
+
+
+         if ( ( diff_t > 60.0 ) || ( j < 10) || ( j % 1000000 == 0 ) ) {
+            time_t mytime = time( NULL );
+            fprintf( stderr, "before Read_Overlap record j = %'d out of %'d %lld at %s %s", j, (int) novl, novl, argv[3], ctime( &mytime ) );
+            fflush( stderr );
+            timeLast = timeCurrent;
+         }
+         // end debugging
+
+
+
+        Read_Overlap(input,ovl);
         if (ovl->path.tlen > tmax)
           { tmax = ((int) 1.2*ovl->path.tlen) + 100;
             trace = (uint16 *) Realloc(trace,sizeof(uint16)*tmax,"Allocating trace vector");
@@ -830,6 +875,12 @@ int main(int argc, char *argv[])
             printf(" trace pts)\n");
           }
       }
+
+    // debugging
+    time_t mytime = time( NULL );
+    fprintf( stderr, "\ncompleted loop record j = %'d out of %'d %lld at %s %s\n", j, (int) novl, novl, argv[3], ctime( &mytime ) );
+    // end debugging
+
 
     if (FALCON && hit_count != -1)
       {
