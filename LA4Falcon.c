@@ -62,6 +62,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// debugging
+#include <time.h>
+#include <locale.h>
+#include <stdbool.h>
+// end debugging
+
+
 
 #define MAX_OVERLAPS 50000
 
@@ -552,6 +559,13 @@ int main(int argc, char *argv[])
 
     //  For each record do
 
+    // debugging
+    setlocale(LC_NUMERIC, ""); // for commas in numbers with %'d
+    fprintf( stderr, "\nabout to go into loop with novl = %lld %'d %s\n", novl, (int) novl, argv[3] );
+    time_t timeLast;
+    time( &timeLast );
+    // end debugging
+
     blast = -1;
     match = 0;
     seen  = 0;
@@ -559,7 +573,25 @@ int main(int argc, char *argv[])
     for (j = 0; j < novl; j++)
        //  Read it in
 
-      { Read_Overlap(input,ovl);
+      { 
+
+         // debugging
+         time_t timeCurrent;
+         time( &timeCurrent );
+         double diff_t = difftime( timeCurrent, timeLast );
+
+
+         if ( ( diff_t > 60.0 ) || ( j < 10) || ( j % 1000000 == 0 ) ) {
+            time_t mytime = time( NULL );
+            fprintf( stderr, "before Read_Overlap record j = %'d out of %'d %lld at %s %s", j, (int) novl, novl, argv[3], ctime( &mytime ) );
+            fflush( stderr );
+            timeLast = timeCurrent;
+         }
+         // end debugging
+
+
+
+        Read_Overlap(input,ovl);
         if (ovl->path.tlen > tmax)
           { tmax = ((int) 1.2*ovl->path.tlen) + 100;
             trace = (uint16 *) Realloc(trace,sizeof(uint16)*tmax,"Allocating trace vector");
@@ -830,6 +862,12 @@ int main(int argc, char *argv[])
             printf(" trace pts)\n");
           }
       }
+
+    // debugging
+    time_t mytime = time( NULL );
+    fprintf( stderr, "\ncompleted loop record j = %'d out of %'d %lld at %s %s\n", j, (int) novl, novl, argv[3], ctime( &mytime ) );
+    // end debugging
+
 
     if (FALCON && hit_count != -1)
       {

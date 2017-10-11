@@ -2,11 +2,11 @@
 type module >& /dev/null || source /mnt/software/Modules/current/init/bash
 
 set -vex
-module load gcc/4.9.2
+module load gcc/6.4.0
 module load git/2.8.3
 module load ccache
 NEXUS_BASEURL=http://ossnexus.pacificbiosciences.com/repository
-NEXUS_URL=$NEXUS_BASEURL/unsupported/gcc-4.9.2
+NEXUS_URL=$NEXUS_BASEURL/unsupported/gcc-6.4.0
 
 rm -rf prebuilt build
 mkdir -p prebuilt/DAZZ_DB build/bin
@@ -23,6 +23,8 @@ make -f /dept/secondary/siv/testdata/hgap/synth5k/LA4Falcon/makefile clean
 PATH=.:${PATH} make -C DALIGNER -f /dept/secondary/siv/testdata/hgap/synth5k/LA4Falcon/makefile
 make -f /dept/secondary/siv/testdata/hgap/synth5k/LA4Falcon/makefile clean
 
-cd build
-tar zcf DALIGNER-SNAPSHOT.tgz bin
-curl -v -n --upload-file DALIGNER-SNAPSHOT.tgz $NEXUS_URL/DALIGNER-SNAPSHOT.tgz
+if [[ $bamboo_planRepository_branchName == "develop" ]]; then
+  cd build
+  tar zcf DALIGNER-SNAPSHOT.tgz bin
+  curl -v -n --upload-file DALIGNER-SNAPSHOT.tgz $NEXUS_URL/DALIGNER-SNAPSHOT.tgz
+fi
