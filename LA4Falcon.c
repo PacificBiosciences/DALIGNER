@@ -64,7 +64,7 @@
 #include <string.h>
 // debugging
 #include <time.h>
-#include <locale.h>
+//#include <locale.h>
 #include <stdbool.h>
 // end debugging
 
@@ -560,10 +560,10 @@ int main(int argc, char *argv[])
     //  For each record do
 
     // debugging
-    setlocale(LC_NUMERIC, ""); // for commas in numbers with %'d
-    fprintf( stderr, "\nabout to go into loop with novl = %lld %'d %s\n", novl, (int) novl, argv[3] );
+    // setlocale(LC_NUMERIC, ""); // for commas in numbers with %'d, but this can cause other problems
+    fprintf(stderr, "\nabout to go into loop with novl = %lld %s\n", novl, argv[3]);
     time_t timeLast;
-    time( &timeLast );
+    time(&timeLast);
     // end debugging
 
     blast = -1;
@@ -573,18 +573,18 @@ int main(int argc, char *argv[])
     for (j = 0; j < novl; j++)
        //  Read it in
 
-      { 
+      {
 
          // debugging
          time_t timeCurrent;
-         time( &timeCurrent );
-         double diff_t = difftime( timeCurrent, timeLast );
+         time(&timeCurrent);
+         double diff_t = difftime(timeCurrent, timeLast);
 
 
          if ( ( diff_t > 60.0 ) || ( j < 10) || ( j % 1000000 == 0 ) ) {
-            time_t mytime = time( NULL );
-            fprintf( stderr, "before Read_Overlap record j = %'d out of %'d %lld at %s %s", j, (int) novl, novl, argv[3], ctime( &mytime ) );
-            fflush( stderr );
+            time_t mytime = time(NULL);
+            fprintf(stderr, "before Read_Overlap record j = %d out of %lld at %s %s", j, novl, argv[3], ctime(&mytime));
+            fflush(stderr);
             timeLast = timeCurrent;
          }
          // end debugging
@@ -864,8 +864,8 @@ int main(int argc, char *argv[])
       }
 
     // debugging
-    time_t mytime = time( NULL );
-    fprintf( stderr, "\ncompleted loop record j = %'d out of %'d %lld at %s %s\n", j, (int) novl, novl, argv[3], ctime( &mytime ) );
+    time_t mytime = time(NULL);
+    fprintf(stderr, "\ncompleted loop record j = %d out of %lld at %s %s\n", j, novl, argv[3], ctime(&mytime));
     // end debugging
 
 
