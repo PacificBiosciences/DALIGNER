@@ -159,7 +159,7 @@ static void print_hits(const int hit_count, HITS_DBX *dbx2, char *bbuffer, char 
         int64 const rlen = (int64)(grp->end.path.bepos) - (int64)(grp->beg.path.bbpos);
         if (rlen < bsize) {
             strncpy( buffer, bbuffer + grp->beg.path.bbpos, rlen );
-            buffer[rlen - 1] = '\0';
+            buffer[rlen] = '\0';
             printf("%08d %s\n", grp->end.bread, buffer);
         } else {
             fprintf(stderr, "[WARNING]Skipping super-long read %08d, len=%lld, buf=%lld\n", grp->end.bread, rlen, bsize);

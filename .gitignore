@@ -17,6 +17,8 @@
 /DB.so
 /daligner_p
 
+/la4f.txt
+
 *.o
 *.d
 *.swp
