@@ -16,7 +16,7 @@
 static char *Usage = "[-U] [-w<int(80)>] <path:db>";
 
 int main(int argc, char *argv[])
-{ HITS_DB    _db, *db = &_db;
+{ DAZZ_DB    _db, *db = &_db;
   FILE       *dbfile;
   int         nfiles;
   int         UPPER, WIDTH;
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 
   //  For each file do:
 
-  { HITS_READ  *reads;
+  { DAZZ_READ  *reads;
     char       *read;
     int         f, first;
     FILE *ofile;
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 
         for (i = first; i < last && i <  db->nreads; i++)
           { int        j, len;
-            HITS_READ *r;
+            DAZZ_READ *r;
 
             r     = reads + i;
             len   = r->rlen;

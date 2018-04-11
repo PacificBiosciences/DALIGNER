@@ -10,7 +10,7 @@ def rc(seq):
 
 ovl_data = LAPI.get_ovl_data(sys.argv[1])
 
-db = HITS_DB()
+db = DAZZ_DB()
 open_DB(sys.argv[2], db)
 trim_DB(db)
 aln = LAPI.Alignment()

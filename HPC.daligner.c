@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include "DB.h"
 #include "filter.h"
@@ -23,26 +24,26 @@
 #undef  LSF  //  define if want a directly executable LSF script
 
 static char *Usage[] =
-  { "[-vbad] [-t<int>] [-w<int(6)>] [-l<int(1000)>] [-s<int(100)]",
+  { "[-vbad] [-t<int>] [-w<int(6)>] [-l<int(1000)>] [-s<int(100)] [-P<dir(/tmp)>]",
     "        [-M<int>] [-B<int(4)>] [-D<int( 250)>] [-T<int(4)>] [-f<name>]",
-    "      ( [-k<int(14)>] [-h<int(35)>] [-e<double(.70)>] [-AI] [-H<int>] |",
-    "        [-k<int(20)>] [-h<int(50)>] [-e<double(.85)>]  <ref:db|dam>   )",
-    "        [-m<track>]+ <reads:db|dam> [<first:int>[-<last:int>]"
+    "      ( [-k<int(14)>] [-h<int(35)>] [-e<double(.70)>] [-H<int>]",
+    "        [-k<int(20)>] [-h<int(50)>] [-e<double(.85)>] <ref:db|dam> )",
+    "        [-m<track>]+ <reads:db|dam> [<first:int>[-<last:int>]]"
   };
 
   //  Command Options
 
 static int    DUNIT, BUNIT;
-static int    VON, BON, AON, ION, CON, DON;
+static int    VON, BON, CON, DON;
 static int    WINT, TINT, HGAP, HINT, KINT, SINT, LINT, MINT;
 static int    NTHREADS;
 static double EREL;
 static int    MMAX, MTOP;
 static char **MASK;
 static char  *ONAME;
+static char  *PDIR;
 
 #define LSF_ALIGN "bsub -q medium -n 4 -o DALIGNER.out -e DALIGNER.err -R span[hosts=1] -J align#%d"
-#define LSF_SORT  "bsub -q short -n 12 -o SORT.DAL.out -e SORT.DAL.err -R span[hosts=1] -J sort#%d"
 #define LSF_MERGE \
           "bsub -q short -n 12 -o MERGE%d.DAL.out -e MERGE%d.DAL.err -R span[hosts=1] -J merge#%d"
 #define LSF_CHECK \
@@ -80,12 +81,12 @@ void daligner_script(int argc, char *argv[])
       }
 
     if (fscanf(dbvis,"files = %d\n",&nfiles) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     for (i = 0; i < nfiles; i++)
       { char buffer[30001];
 
         if (fgets(buffer,30000,dbvis) == NULL)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
       }
 
     useblock = 1;
@@ -163,12 +164,12 @@ void daligner_script(int argc, char *argv[])
         exit (1);
       }
 
-    DON = (DON && useblock);
+    DON = (DON && (lblock > 1));
     out = stdout;
   }
 
   { int level, njobs;
-    int i, j, k, p;
+    int i, j, k;
 
     //  Create all work subdirectories if DON
 
@@ -181,9 +182,12 @@ void daligner_script(int argc, char *argv[])
         fprintf(out,"# Create work subdirectories\n");
         for (i = fblock; i <= lblock; i++)
           fprintf(out,"mkdir work%d\n",i);
+
+        if (ONAME != NULL)
+          fclose(out);
       }
 
-    //  Produce all necessary daligner jobs ...
+    //  Produce all necessary daligner jobs
 
     if (ONAME != NULL)
       { sprintf(name,"%s.01.OVL",ONAME);
@@ -216,10 +220,6 @@ void daligner_script(int argc, char *argv[])
               fprintf(out," -v");
             if (BON)
               fprintf(out," -b");
-            if (AON)
-              fprintf(out," -A");
-            if (ION)
-              fprintf(out," -I");
             if (KINT != 14)
               fprintf(out," -k%d",KINT);
             if (WINT != 6)
@@ -238,6 +238,8 @@ void daligner_script(int argc, char *argv[])
               fprintf(out," -s%d",SINT);
             if (MINT >= 0)
               fprintf(out," -M%d",MINT);
+            if (PDIR != NULL)
+              fprintf(out," -P%s",PDIR);
             if (NTHREADS != 4)
               fprintf(out," -T%d",NTHREADS);
             for (k = 0; k < MTOP; k++)
@@ -265,23 +267,30 @@ void daligner_script(int argc, char *argv[])
                 else
                   fprintf(out," %s",root);
 
-            if (DON)
-              for (k = low; k < hgh; k++)
-                { fprintf(out," && mv");
-                  for (p = 0; p < NTHREADS; p++)
-                    { fprintf(out," %s.%d.%s.%d.C%d.las",root,i,root,k,p);
-                      fprintf(out," %s.%d.%s.%d.N%d.las",root,i,root,k,p);
-                    }
-                  fprintf(out," work%d",i);
+            if (lblock == 1)   // ==> i = 1, [low,hgh) = [1,2)
+              { fprintf(out," && mv");
+                if (useblock)
+                  fprintf(out," %s.1.%s.1.las",root,root);
+                else
+                  fprintf(out," %s.%s.las",root,root);
+                if (usepath)
+                  fprintf(out," %s/",pwd);
+                else
+                  fprintf(out," ");
+                if (useblock)
+                  fprintf(out,"%s.1.las",root);
+                else
+                  fprintf(out,"%s.las",root);
+              }
+            else if (DON)
+              { fprintf(out," && mv");
+                for (k = low; k < hgh; k++)
+                  fprintf(out," %s.%d.%s.%d.las",root,i,root,k);
+                fprintf(out," work%d",i);
+                for (k = low; k < hgh; k++)
                   if (k != i)
-                    { fprintf(out," && mv");
-                      for (p = 0; p < NTHREADS; p++)
-                        { fprintf(out," %s.%d.%s.%d.C%d.las",root,k,root,i,p);
-                          fprintf(out," %s.%d.%s.%d.N%d.las",root,k,root,i,p);
-                        }
-                      fprintf(out," work%d",k);
-                    }
-                }
+                    fprintf(out," && mv %s.%d.%s.%d.las work%d",root,k,root,i,k);
+              }
 
 #ifdef LSF
             fprintf(out,"\"");
@@ -291,100 +300,11 @@ void daligner_script(int argc, char *argv[])
           }
       }
 
-    //  ... and then all the initial sort & merge jobs for each block pair
-
-    if (ONAME != NULL)
-      { fclose(out);
-        sprintf(name,"%s.02.SORT",ONAME);
-        out = fopen(name,"w");
-      }
-
-    fprintf(out,"# Initial sort jobs (%d)\n", lblock*lblock - (fblock-1)*(fblock-1) );
-
-#ifdef LSF
-    jobid = 1;
-#endif
-    for (i = 1; i <= lblock; i++)
-      for (j = (i < fblock ? fblock : 1); j <= lblock; j++)
-        {
-#ifdef LSF
-          fprintf(out,LSF_SORT,jobid++);
-          fprintf(out," \"");
-#endif
-          fprintf(out,"LAsort");
-          if (VON)
-            fprintf(out," -v");
-          if (CON)
-            fprintf(out," -a");
-          for (k = 0; k < NTHREADS; k++)
-            if (useblock)
-              if (DON)
-                { fprintf(out," work%d/%s.%d.%s.%d.C%d",i,root,i,root,j,k);
-                  fprintf(out," work%d/%s.%d.%s.%d.N%d",i,root,i,root,j,k);
-                }
-              else
-                { fprintf(out," %s.%d.%s.%d.C%d",root,i,root,j,k);
-                  fprintf(out," %s.%d.%s.%d.N%d",root,i,root,j,k);
-                }
-            else
-              { fprintf(out," %s.%s.C%d",root,root,k);
-                fprintf(out," %s.%s.N%d",root,root,k);
-              }
-          fprintf(out," && LAmerge");
-          if (VON)
-            fprintf(out," -v");
-          if (CON)
-            fprintf(out," -a");
-          if (lblock == 1)
-            { if (usepath)
-                if (useblock)
-                  fprintf(out," %s/%s.1",pwd,root);
-                else
-                  fprintf(out," %s/%s",pwd,root);
-              else
-                if (useblock)
-                  fprintf(out," %s.1",root);
-                else
-                  fprintf(out," %s",root);
-            }
-          else if (i < fblock)
-            { if (DON)
-                fprintf(out," work%d/L1.%d.%d",i,i,(j-fblock)+1);
-              else
-                fprintf(out," L1.%d.%d",i,(j-fblock)+1);
-            }
-          else
-            { if (DON)
-                fprintf(out," work%d/L1.%d.%d",i,i,j);
-              else
-                fprintf(out," L1.%d.%d",i,j);
-            }
-          for (k = 0; k < NTHREADS; k++)
-            if (useblock)
-              if (DON)
-                { fprintf(out," work%d/%s.%d.%s.%d.C%d.S",i,root,i,root,j,k);
-                  fprintf(out," work%d/%s.%d.%s.%d.N%d.S",i,root,i,root,j,k);
-                }
-              else
-                { fprintf(out," %s.%d.%s.%d.C%d.S",root,i,root,j,k);
-                  fprintf(out," %s.%d.%s.%d.N%d.S",root,i,root,j,k);
-                }
-            else
-              { fprintf(out," %s.%s.C%d.S",root,root,k);
-                fprintf(out," %s.%s.N%d.S",root,root,k);
-              }
-
-#ifdef LSF
-          fprintf(out,"\"");
-#endif
-          fprintf(out,"\n");
-        }
-
     //  Check .las files (optional)
 
     if (ONAME != NULL)
       { fclose(out);
-        sprintf(name,"%s.03.CHECK.OPT",ONAME);
+        sprintf(name,"%s.02.CHECK.OPT",ONAME);
         out = fopen(name,"w");
       }
 
@@ -422,17 +342,11 @@ void daligner_script(int argc, char *argv[])
                     else
                       fprintf(out," %s",root);
                 }
-              else if (i < fblock)
-                { if (DON)
-                    fprintf(out," work%d/L1.%d.%d",i,i,(j-fblock)+1);
-                  else
-                    fprintf(out," L1.%d.%d",i,(j-fblock)+1);
-                }
               else
                 { if (DON)
-                    fprintf(out," work%d/L1.%d.%d",i,i,j);
+                    fprintf(out," work%d/%s.%d.%s.%d",i,root,i,root,j);
                   else
-                    fprintf(out," L1.%d.%d",i,j);
+                    fprintf(out," %s.%d.%s.%d",root,i,root,j);
                 }
               j += 1;
             }
@@ -441,47 +355,6 @@ void daligner_script(int argc, char *argv[])
 #endif
           fprintf(out,"\n");
         }
-
-    //  Clean up
-
-    if (ONAME != NULL)
-      { fclose(out);
-        sprintf(name,"%s.04.RM",ONAME);
-        out = fopen(name,"w");
-      }
-
-    fprintf(out,"# Remove initial .las files\n");
-
-    for (i = 1; i <= lblock; i++)
-      { if (DON)
-          fprintf(out,"cd work%d\n",i);
-        for (j = (i < fblock ? fblock : 1); j <= lblock; j++)
-          { fprintf(out,"rm");
-            for (k = 0; k < NTHREADS; k++)
-              if (useblock)
-                { fprintf(out," %s.%d.%s.%d.C%d.las",root,i,root,j,k);
-                  fprintf(out," %s.%d.%s.%d.N%d.las",root,i,root,j,k);
-                }
-              else
-                { fprintf(out," %s.%s.C%d.las",root,root,k);
-                  fprintf(out," %s.%s.N%d.las",root,root,k);
-                }
-            fprintf(out,"\n");
-            fprintf(out,"rm");
-            for (k = 0; k < NTHREADS; k++)
-              if (useblock)
-                { fprintf(out," %s.%d.%s.%d.C%d.S.las",root,i,root,j,k);
-                  fprintf(out," %s.%d.%s.%d.N%d.S.las",root,i,root,j,k);
-                }
-              else
-                { fprintf(out," %s.%s.C%d.S.las",root,root,k);
-                  fprintf(out," %s.%s.N%d.S.las",root,root,k);
-                }
-            fprintf(out,"\n");
-          }
-        if (DON)
-          fprintf(out,"cd ..\n");
-      }
 
     if (ONAME != NULL)
       fclose(out);
@@ -493,7 +366,7 @@ void daligner_script(int argc, char *argv[])
 
         //  Determine the number of merging levels
 
-        stage = 5;
+        stage = 3;
 
         pow = 1;
         for (level = 0; pow < lblock; level++)
@@ -580,10 +453,16 @@ void daligner_script(int argc, char *argv[])
                             else
                               fprintf(out," L%d.%d.%d",i+1,j,p);
                           for (k = low; k <= hgh; k++)
-                            if (DON)
-                              fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                            if (i == 1)
+                              if (DON)
+                                fprintf(out," work%d/%s.%d.%s.%d",j,root,j,root,k+(fblock-1));
+                              else
+                                fprintf(out," %s.%d.%s.%d",root,j,root,k+(fblock-1));
                             else
-                              fprintf(out," L%d.%d.%d",i,j,k);
+                              if (DON)
+                                fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                              else
+                                fprintf(out," L%d.%d.%d",i,j,k);
 #ifdef LSF
                           fprintf(out,"\"");
 #endif
@@ -621,10 +500,16 @@ void daligner_script(int argc, char *argv[])
                         else
                           fprintf(out," L%d.%d.%d",i+1,j,p);
                       for (k = low; k <= hgh; k++)
-                        if (DON)
-                          fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                        if (i == 1)
+                          if (DON)
+                            fprintf(out," work%d/%s.%d.%s.%d",j,root,j,root,k);
+                          else
+                            fprintf(out," %s.%d.%s.%d",root,j,root,k);
                         else
-                          fprintf(out," L%d.%d.%d",i,j,k);
+                          if (DON)
+                            fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                          else
+                            fprintf(out," L%d.%d.%d",i,j,k);
 #ifdef LSF
                       fprintf(out,"\"");
 #endif
@@ -740,37 +625,43 @@ void daligner_script(int argc, char *argv[])
                   last = (dnt == 1 || i == level);
                   for (j = 1; j < fblock; j++)
                     { low = 1;
-                      if (DON)
-                        fprintf(out,"cd work%d\n",j);
                       for (p = 1; p <= dits; p++)
                         { hgh = (dnt*p)/dits;
+                          if (DON)
+                            fprintf(out,"cd work%d; ",j);
                           fprintf(out,"rm");
                           if (last)
                             fprintf(out," L%d.%d.0.las",i,j);
                           for (k = low; k <= hgh; k++)
-                            fprintf(out," L%d.%d.%d.las",i,j,k);
+                            if (i == 1)
+                              fprintf(out," %s.%d.%s.%d.las",root,j,root,k+(fblock-1));
+                            else
+                              fprintf(out," L%d.%d.%d.las",i,j,k);
+                          if (DON)
+                            fprintf(out,"; cd ..");
                           fprintf(out,"\n");
                           low = hgh+1;
                         }
-                      if (DON)
-                        fprintf(out,"cd ..\n");
                     }
                 }
 
               for (j = fblock; j <= lblock; j++) 
                 { low = 1;
-                  if (DON)
-                    fprintf(out,"cd work%d\n",j);
                   for (p = 1; p <= bits; p++)
                     { hgh = (cnt*p)/bits;
+                      if (DON)
+                        fprintf(out,"cd work%d; ",j);
                       fprintf(out,"rm");
                       for (k = low; k <= hgh; k++)
-                        fprintf(out," L%d.%d.%d.las",i,j,k);
+                        if (i == 1)
+                          fprintf(out," %s.%d.%s.%d.las",root,j,root,k);
+                        else
+                          fprintf(out," L%d.%d.%d.las",i,j,k);
+                      if (DON)
+                        fprintf(out,"; cd ..");
                       fprintf(out,"\n");
                       low = hgh+1;
                     }
-                  if (DON)
-                    fprintf(out,"cd ..\n");
                 }
 
               if (ONAME != NULL)
@@ -840,12 +731,12 @@ void mapper_script(int argc, char *argv[])
       }
 
     if (fscanf(dbvis,"files = %d\n",&nfiles) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     for (i = 0; i < nfiles; i++)
       { char buffer[30001];
 
         if (fgets(buffer,30000,dbvis) == NULL)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
       }
 
     useblock1 = 1;
@@ -882,12 +773,12 @@ void mapper_script(int argc, char *argv[])
       }
 
     if (fscanf(dbvis,"files = %d\n",&nfiles) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     for (i = 0; i < nfiles; i++)
       { char buffer[30001];
 
         if (fgets(buffer,30000,dbvis) == NULL)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
       }
 
     useblock2 = 1;
@@ -944,8 +835,8 @@ void mapper_script(int argc, char *argv[])
     if (fblock > 1)
       { file = fopen(Catenate(src2,".",root1,Numbered_Suffix(".",fblock-1,".las")),"r");
         if (file == NULL)
-          { fprintf(stderr,"%s: File %s.%s.%d.las should already be present!\n",
-                           Prog_Name,src2,root1,fblock-1);
+          { fprintf(stderr,"%s: File %s.%d.%s.las should already be present!\n",
+                           Prog_Name,src2,fblock-1,root1);
             exit (1);
           }
         else
@@ -954,8 +845,8 @@ void mapper_script(int argc, char *argv[])
     if (useblock2)
       { file = fopen(Catenate(src2,".",root1,Numbered_Suffix(".",fblock,".las")),"r");
         if (file != NULL)
-          { fprintf(stderr,"%s: File %s.%s.%d.las should not yet exist!\n",
-                           Prog_Name,src2,root1,fblock);
+          { fprintf(stderr,"%s: File %s.%d.%s.las should not yet exist!\n",
+                           Prog_Name,src2,fblock,root1);
             exit (1);
           }
       }
@@ -970,13 +861,12 @@ void mapper_script(int argc, char *argv[])
 
     free(src2);
 
-    DON = (DON && useblock1 && useblock2);
+    DON = (DON && (nblocks1 > 1));
     out = stdout;
   }
 
   { int level, njobs;
-    int i, j, k, t;
-    char orient[2] = { 'C', 'N' };
+    int i, j, k;
 
     //  Create all work subdirectories if DON
 
@@ -989,6 +879,9 @@ void mapper_script(int argc, char *argv[])
         fprintf(out,"# Create work subdirectories\n");
         for (i = fblock; i <= lblock; i++)
           fprintf(out,"mkdir work%d\n",i);
+
+        if (ONAME != NULL)
+          fclose(out);
       }
 
     //  Produce all necessary daligner jobs ...
@@ -1040,6 +933,8 @@ void mapper_script(int argc, char *argv[])
               fprintf(out," -T%d",NTHREADS);
             if (MINT >= 0)
               fprintf(out," -M%d",MINT);
+            if (PDIR != NULL)
+              fprintf(out," -P%s",PDIR);
             for (k = 0; k < MTOP; k++)
               fprintf(out," -m%s",MASK[k]);
 
@@ -1060,15 +955,37 @@ void mapper_script(int argc, char *argv[])
                   fprintf(out,".%d",k);
               }
 
-            if (DON)
-              for (k = low; k < hgh; k++)
-                { fprintf(out," && mv");
-                  for (t = 0; t < NTHREADS; t++)
-                    { fprintf(out," %s.%d.%s.%d.C%d.las",root2,i,root1,k,t);
-                      fprintf(out," %s.%d.%s.%d.N%d.las",root2,i,root1,k,t);
-                    }
-                  fprintf(out," work%d",i);
-                }
+            if (nblocks1 == 1)
+              { if (useblock1 || usepath2)
+                  { fprintf(out," && mv %s",root2);
+                    if (useblock2)
+                      fprintf(out,".%d.las",i);
+                    if (useblock1)
+                      fprintf(out,".%s.1.las ",root1);
+                    else
+                      fprintf(out,".%s.las ",root1);
+                    if (useblock1)
+                      { if (usepath2)
+                          fprintf(out,"%s/",pwd2);
+                        fprintf(out,"%s",root2);
+                        if (useblock2)
+                          fprintf(out,".%d",i);
+                        fprintf(out,".%s.las",root1);
+                      }
+                    else
+                      fprintf(out,"%s",pwd2);
+                  }
+              }
+            else if (DON)
+              { fprintf(out," && mv");
+                for (k = low; k < hgh; k++)
+                  { fprintf(out," %s",root2);
+                    if (useblock2)
+                      fprintf(out,".%d",i);
+                    fprintf(out,".%s.%d.las",root1,k);
+                  }
+                fprintf(out," work%d",i);
+              }
 #ifdef LSF
             fprintf(out,"\"");
 #endif
@@ -1077,94 +994,16 @@ void mapper_script(int argc, char *argv[])
           }
       }
 
-    //  ... and then all the initial sort & merge jobs for each block pair
-
-    if (ONAME != NULL)
-      { fclose(out);
-        sprintf(name,"%s.02.SORT",ONAME);
-        out = fopen(name,"w");
-      }
-
-    fprintf(out,"# Initial sort jobs (%d)\n", nblocks1*((lblock-fblock)+1));
-
-#ifdef LSF
-    jobid = 1;
-#endif
-    for (j = fblock; j <= lblock; j++)
-      for (i = 1; i <= nblocks1; i++)
-        {
-#ifdef LSF
-          fprintf(out,LSF_MSORT,jobid++);
-          fprintf(out," \"");
-#endif
-          fprintf(out,"LAsort ");
-          if (VON)
-            fprintf(out,"-v ");
-          if (CON)
-            fprintf(out,"-a ");
-          for (k = 0; k < NTHREADS; k++)
-            for (t = 0; t < 2; t++)
-              { if (DON)
-                  fprintf(out,"work%d/",j);
-                fprintf(out,"%s",root2);
-                if (useblock2)
-                  fprintf(out,".%d",j);
-                fprintf(out,".%s",root1);
-                if (useblock1)
-                  fprintf(out,".%d",i);
-                fprintf(out,".%c%d ",orient[t],k);
-              }
-
-          fprintf(out,"&& LAmerge ");
-          if (VON)
-            fprintf(out,"-v ");
-          if (CON)
-            fprintf(out,"-a ");
-          if (nblocks1 == 1)
-            { if (usepath2)
-                fprintf(out,"%s/",pwd2);
-              fprintf(out,"%s",root2);
-              if (useblock2)
-                fprintf(out,".%d",j);
-              fprintf(out,".%s",root1);
-            }
-          else
-            { if (DON)
-                fprintf(out,"work%d/",j);
-              fprintf(out,"L1.%d.%d",j,i);
-            }
-
-          for (k = 0; k < NTHREADS; k++)
-            for (t = 0; t < 2; t++)
-              { if (DON)
-                  fprintf(out," work%d/%s",j,root2);
-                else
-                  fprintf(out," %s",root2);
-                if (useblock2)
-                  fprintf(out,".%d",j);
-                fprintf(out,".%s",root1);
-                if (useblock1)
-                  fprintf(out,".%d",i);
-                fprintf(out,".%c%d.S",orient[t],k);
-              }
-#ifdef LSF
-          fprintf(out,"\"");
-#endif
-          fprintf(out,"\n");
-        }
-
     //  Check .las files (optional)
 
     if (ONAME != NULL)
       { fclose(out);
-        sprintf(name,"%s.03.CHECK.OPT",ONAME);
+        sprintf(name,"%s.02.CHECK.OPT",ONAME);
         out = fopen(name,"w");
       }
 
     fprintf(out,"# Check initial .las files jobs (%d) (optional but recommended)\n",
                  (lblock-fblock+1) * ((nblocks1-1)/(BUNIT+1) + 1) );
-
-    fprintf(out,"# Check all level 1 .las files (optional but recommended)\n");
 
 #ifdef LSF
     jobid = 1;
@@ -1200,7 +1039,10 @@ void mapper_script(int argc, char *argv[])
               else
                 { if (DON)
                     fprintf(out,"work%d/",j);
-                  fprintf(out,"L1.%d.%d",j,i);
+                  fprintf(out,"%s",root2);
+                  if (useblock2)
+                    fprintf(out,".%d",j);
+                  fprintf(out,".%s.%d",root1,i);
                 }
               i += 1;
             }
@@ -1209,40 +1051,6 @@ void mapper_script(int argc, char *argv[])
 #endif
           fprintf(out,"\n");
         }
-
-    //  Clean up (optional)
-
-    if (ONAME != NULL)
-      { fclose(out);
-        sprintf(name,"%s.04.RM",ONAME);
-        out = fopen(name,"w");
-      }
-
-    fprintf(out,"# Remove initial .las files\n");
-
-    for (j = fblock; j <= lblock; j++)
-      { if (DON)
-          fprintf(out,"cd work%d\n",j);
-        for (i = 1; i <= nblocks1; i++)
-          for (t = 0; t < 4; t++)
-            { fprintf(out,"rm");
-              for (k = 0; k < NTHREADS; k++)
-                { fprintf(out," %s",root2);
-                  if (useblock2)
-                    fprintf(out,".%d",j);
-                  fprintf(out,".%s",root1);
-                  if (useblock1)
-                    fprintf(out,".%d",i);
-                  fprintf(out,".%c%d",orient[t%2],k);
-                  if (t >= 2)
-                    fprintf(out,".S");
-                  fprintf(out,".las");
-                }
-              fprintf(out,"\n");
-            }
-        if (DON)
-          fprintf(out,"cd ..\n");
-      }
 
     if (ONAME != NULL)
       fclose(out);
@@ -1254,7 +1062,7 @@ void mapper_script(int argc, char *argv[])
 
         //  Determine the number of merging levels
 
-        stage = 5;
+        stage = 3;
 
         pow = 1;
         for (level = 0; pow < nblocks1; level++)
@@ -1309,10 +1117,21 @@ void mapper_script(int argc, char *argv[])
                           fprintf(out,"L%d.%d.%d",i+1,j,p);
                         }
                       for (k = low; k <= hgh; k++)
-                        if (DON)
-                          fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                        if (i == 1)
+                          { if (DON)
+                              fprintf(out," work%d/",j);
+                            else
+                              fprintf(out," ");
+                            fprintf(out,"%s",root2);
+                            if (useblock2)
+                              fprintf(out,".%d",j);
+                            fprintf(out,".%s.%d",root1,k);
+                          }
                         else
-                          fprintf(out," L%d.%d.%d",i,j,k);
+                          if (DON)
+                            fprintf(out," work%d/L%d.%d.%d",j,i,j,k);
+                          else
+                            fprintf(out," L%d.%d.%d",i,j,k);
 
 #ifdef LSF
                       fprintf(out,"\"");
@@ -1388,19 +1207,26 @@ void mapper_script(int argc, char *argv[])
               fprintf(out,"# Remove level %d .las files\n",i);
 
               for (j = fblock; j <= lblock; j++) 
-                { if (DON)
-                    fprintf(out,"cd work%d\n",j);
-                  low = 1;
+                { low = 1;
                   for (p = 1; p <= bits; p++)
                     { hgh = (cnt*p)/bits;
+                      if (DON)
+                        fprintf(out,"cd work%d; ",j);
                       fprintf(out,"rm");
                       for (k = low; k <= hgh; k++)
-                        fprintf(out," L%d.%d.%d.las",i,j,k);
+                        if (i == 1)
+                          { fprintf(out," %s",root2);
+                            if (useblock2)
+                              fprintf(out,".%d",j);
+                            fprintf(out,".%s.%d.las",root1,k);
+                          }
+                        else
+                          fprintf(out," L%d.%d.%d.las",i,j,k);
+                      if (DON)
+                        fprintf(out,"; cd ..");
                       fprintf(out,"\n");
                       low = hgh+1;
                     }
-                  if (DON)
-                    fprintf(out,"cd ..\n");
                 }
 
               if (ONAME != NULL)
@@ -1442,6 +1268,7 @@ int main(int argc, char *argv[])
   LINT  = 1000;
   SINT  = 100;
   MINT  = -1;
+  PDIR  = NULL;
 
   MTOP = 0;
   MMAX = 10;
@@ -1474,6 +1301,10 @@ int main(int argc, char *argv[])
           break;
         case 'k':
           ARG_POSITIVE(KINT,"K-mer length")
+          if (KINT > 32)
+            { fprintf(stderr,"%s: K-mer length must be 32 or less\n",Prog_Name);
+              exit (1);
+            }
           break;
         case 'l':
           ARG_POSITIVE(LINT,"Minimum ovlerap length")
@@ -1513,6 +1344,9 @@ int main(int argc, char *argv[])
         case 'M':
           ARG_NON_NEGATIVE(MINT,"Memory allocation (in Gb)")
           break;
+        case 'P':
+          PDIR = argv[i]+2;
+          break;
         case 'T':
           ARG_POSITIVE(NTHREADS,"Number of threads")
           break;
@@ -1523,8 +1357,6 @@ int main(int argc, char *argv[])
 
   VON = flags['v'];
   BON = flags['b'];
-  AON = flags['A'];
-  ION = flags['I'];
   CON = flags['a'];
   DON = flags['d'];
 
@@ -1550,11 +1382,7 @@ int main(int argc, char *argv[])
     }
 
   if (mapper)
-    { if (AON || ION)
-        { fprintf(stderr,"%s: Cannot use -A or -I options in a comparison script\n",Prog_Name);
-          exit (1);
-        }
-      if (HGAP > 0)
+    { if (HGAP > 0)
         { fprintf(stderr,"%s: Cannot use -H option in a comparison script\n",Prog_Name);
           exit (1);
         }

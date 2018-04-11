@@ -28,6 +28,8 @@
 #include "filter.h"
 #include "align.h"
 
+#undef FOR_PACBIO
+
 #define THREAD    pthread_t
 
 #define MAX_BIAS  2    //  In -b mode, don't consider tuples with specificity
@@ -46,6 +48,7 @@
 #undef  TEST_CSORT
 #define    HOW_MANY   3000   //  Print first HOW_MANY items for each of the TEST options above
 
+#define DO_ALIGNMENT
 #undef  TEST_GATHER
 #undef  TEST_CONTAIN
 #undef  SHOW_OVERLAP          //  Show the cartoon
@@ -396,9 +399,9 @@ static int *NormShift = NULL;
 static int  LogNorm, LogThresh;
 static int  LogBase[4];
 
-static HITS_DB    *TA_block;
+static DAZZ_DB    *TA_block;
 static KmerPos    *TA_list;
-static HITS_TRACK *TA_track;
+static DAZZ_TRACK *TA_track;
 
 typedef struct
   { int    tnum;
@@ -423,7 +426,7 @@ static void *tuple_thread(void *arg)
   n -= Kmer*i;
 
   if (TA_track != NULL)
-    { HITS_READ *reads = TA_block->reads;
+    { DAZZ_READ *reads = TA_block->reads;
       int64     *anno1 = ((int64 *) (TA_track->anno)) + 1;
       int       *point = (int *) (TA_track->data);
       int64      a, b, f; 
@@ -464,8 +467,8 @@ static void *tuple_thread(void *arg)
       kptr[BMASK] += (data->fill = m-n);
       while (n < m)
         { list[n].code = 0xffffffffffffffffllu;
-          list[n].read = 0xffffffff;
-          list[n].rpos = 0xffffffff;
+          list[n].read = -1;
+          list[n].rpos = -1;
           n += 1;
         }
     }
@@ -506,7 +509,7 @@ static void *biased_tuple_thread(void *arg)
   n -= Kmer*i;
 
   if (TA_track != NULL)
-    { HITS_READ *reads = TA_block->reads;
+    { DAZZ_READ *reads = TA_block->reads;
       int64     *anno1 = ((int64 *) (TA_track->anno)) + 1;
       int       *point = (int *) (TA_track->data);
       int64      j, b, f; 
@@ -606,8 +609,8 @@ static void *biased_tuple_thread(void *arg)
   kptr[BMASK] += (data->fill = m-n);
   while (n < m)
     { list[n].code = 0xffffffffffffffffllu;
-      list[n].read = 0xffffffff;
-      list[n].rpos = 0xffffffff;
+      list[n].read = -1;
+      list[n].rpos = -1;
       n += 1;
     }
 
@@ -671,7 +674,7 @@ static void *compress_thread(void *arg)
   return (NULL);
 }
 
-void *Sort_Kmers(HITS_DB *block, int *len)
+void *Sort_Kmers(DAZZ_DB *block, int *len)
 { THREAD    threads[NTHREADS];
   Tuple_Arg parmt[NTHREADS];
   Comp_Arg  parmf[NTHREADS];
@@ -777,8 +780,34 @@ void *Sort_Kmers(HITS_DB *block, int *len)
 
   rez = (KmerPos *) lex_sort(mersort,(Double *) src,(Double *) trg,parmx);
   if (BIASED || TA_track != NULL)
-    for (i = 0; i < NTHREADS; i++)
-      kmers -= parmt[i].fill;
+    { if (Kmer%4 == 0)
+        { int wedge[NTHREADS];
+
+          for (j = 0; j < NTHREADS; j++)
+            if (parmt[j].fill > 0)
+              break;
+          j += 1;
+          if (j < NTHREADS)
+            { x = kmers-1;
+              for (i = NTHREADS-1; i >= j; i--)
+                { x = x - parmt[i].fill;
+                  z = x;
+                  while (rez[x].read >= 0)
+                    x -= 1;
+                  wedge[i] = z-x;
+                }
+              x += 1;
+              z = x-parmt[j-1].fill;
+              for (i = j; i < NTHREADS; i++)
+                { memmove(rez+z,rez+x,wedge[i]*sizeof(KmerPos));
+                  x += wedge[i] + parmt[i].fill;
+                  z += wedge[i];
+                }
+            }
+        }
+      for (i = 0; i < NTHREADS; i++)
+        kmers -= parmt[i].fill;
+    }
 
   if (TooFrequent < INT32_MAX && kmers > 0)
     { parmf[0].beg = 0;
@@ -840,7 +869,7 @@ void *Sort_Kmers(HITS_DB *block, int *len)
     printf("\nKMER SORT:\n");
     for (i = 0; i < HOW_MANY && i < kmers; i++)
       { KmerPos *c = rez+i;
-        printf(" %5d / %5d / %10lld\n",c->read,c->rpos,c->code);
+        printf(" %9d:  %6d / %6d / %16llx\n",i,c->read,c->rpos,c->code);
       }
     fflush(stdout);
   }
@@ -1203,8 +1232,8 @@ static void *merge_thread(void *arg)
 
   //  Report threads: given a segment of merged list, find all seeds and from them all alignments.
 
-static HITS_DB    *MR_ablock;
-static HITS_DB    *MR_bblock;
+static DAZZ_DB    *MR_ablock;
+static DAZZ_DB    *MR_bblock;
 static SeedPair   *MR_hits;
 static int         MR_two;
 static Align_Spec *MR_spec;
@@ -1572,8 +1601,8 @@ static void *report_thread(void *arg)
   Double      *hitd   = (Double *) MR_hits;
   char        *aseq   = (char *) (MR_ablock->bases);
   char        *bseq   = (char *) (MR_bblock->bases);
-  HITS_READ   *aread  = MR_ablock->reads;
-  HITS_READ   *bread  = MR_bblock->reads;
+  DAZZ_READ   *aread  = MR_ablock->reads;
+  DAZZ_READ   *bread  = MR_bblock->reads;
   int         *score  = data->score;
   int         *scorp  = data->score + 1;
   int         *scorm  = data->score - 1;
@@ -1645,7 +1674,7 @@ static void *report_thread(void *arg)
   hitc   = hitd + (minhit-1);
   eidx   = data->end - minhit;
   nidx   = data->beg;
-  for (cpair = hitd[nidx].p2; nidx < eidx; cpair = npair)
+  for (cpair = hitd[nidx].p2; nidx <= eidx; cpair = npair)
     if (hitc[nidx].p2 != cpair)
       { nidx += 1;
         while ((npair = hitd[nidx].p2) == cpair)
@@ -1723,9 +1752,14 @@ static void *report_thread(void *arg)
                         align->blen = blen;
                         ovlb->bread = ovla->aread = ar + afirst;
                         ovlb->aread = ovla->bread = br + bfirst;
+#ifdef FOR_PACBIO
+                        doA = 1;
+                        doB = (SYMMETRIC && (ar != br || !MG_self || !MG_comp));
+#else
                         doA = (alen >= HGAP_MIN);
                         doB = (SYMMETRIC && blen >= HGAP_MIN &&
                                    (ar != br || !MG_self || !MG_comp));
+#endif
                       }
 #ifdef TEST_GATHER
                     else
@@ -1740,6 +1774,7 @@ static void *report_thread(void *arg)
 #endif
                     nfilt += 1;
 
+#ifdef DO_ALIGNMENT
                     bpath = Local_Alignment(align,work,MR_spec,apos-bpos,apos-bpos,apos+bpos,-1,-1);
 
                     { int low, hgh, ae;
@@ -1787,7 +1822,7 @@ static void *report_thread(void *arg)
                               }
                             amatch[novla] = *apath;
                             amatch[novla].trace = (void *) (tbuf->top);
-                            memcpy(tbuf->trace+tbuf->top,apath->trace,sizeof(short)*apath->tlen);
+                            memmove(tbuf->trace+tbuf->top,apath->trace,sizeof(short)*apath->tlen);
                             novla += 1;
                             tbuf->top += apath->tlen;
                           }
@@ -1808,7 +1843,7 @@ static void *report_thread(void *arg)
                               }
                             bmatch[novlb] = *bpath;
                             bmatch[novlb].trace = (void *) (tbuf->top);
-                            memcpy(tbuf->trace+tbuf->top,bpath->trace,sizeof(short)*bpath->tlen);
+                            memmove(tbuf->trace+tbuf->top,bpath->trace,sizeof(short)*bpath->tlen);
                             novlb += 1;
                             tbuf->top += bpath->tlen;
                           }
@@ -1835,6 +1870,7 @@ static void *report_thread(void *arg)
                       printf("  No alignment %d",
                               ((apath->aepos-apath->abpos) + (apath->bepos-apath->bbpos))/2);
 #endif
+#endif // DO_ALIGNMENT
                   }
               }
 
@@ -1885,14 +1921,20 @@ static void *report_thread(void *arg)
                ovla->path.trace = tbuf->trace + (uint64) (ovla->path.trace);
                if (small)
                  Compress_TraceTo8(ovla);
-               Write_Overlap(ofile1,ovla,tbytes);
+               if (Write_Overlap(ofile1,ovla,tbytes))
+                 { fprintf(stderr,"%s: Cannot write to %s too small?\n",SORT_PATH,Prog_Name);
+                   exit (1);
+                 }
              }
            for (i = 0; i < novlb; i++)
              { ovlb->path = bmatch[i];
                ovlb->path.trace = tbuf->trace + (uint64) (ovlb->path.trace);
                if (small)
                  Compress_TraceTo8(ovlb);
-               Write_Overlap(ofile2,ovlb,tbytes);
+               if (Write_Overlap(ofile2,ovlb,tbytes))
+                 { fprintf(stderr,"%s: Cannot write to %s, too small?\n",SORT_PATH,Prog_Name);
+                   exit (1);
+                 }
              }
            ahits += novla;
            bhits += novlb;
@@ -1928,7 +1970,23 @@ static void *report_thread(void *arg)
  *
  ********************************************************************************************/
 
-void Match_Filter(char *aname, HITS_DB *ablock, char *bname, HITS_DB *bblock,
+static char *NameBuffer(char *aname, char *bname)
+{ static char *cat = NULL;
+  static int   max = -1;
+  int len;
+
+  len = strlen(aname) + strlen(bname) + 100;
+  if (len > max)
+    { max = ((int) (1.2*len)) + 100;
+      if ((cat = (char *) realloc(cat,max+1)) == NULL)
+        { fprintf(stderr,"%s: Out of memory (Making path name)\n",Prog_Name);
+          exit (1);
+        }
+    }
+  return (cat);
+}
+
+void Match_Filter(char *aname, DAZZ_DB *ablock, char *bname, DAZZ_DB *bblock,
                   void *vasort, int alen, void *vbsort, int blen,
                   int comp, Align_Spec *aspec)
 { THREAD     threads[NTHREADS];
@@ -1936,6 +1994,7 @@ void Match_Filter(char *aname, HITS_DB *ablock, char *bname, HITS_DB *bblock,
   Lex_Arg    parmx[NTHREADS];
   Report_Arg parmr[NTHREADS];
   int        pairsort[16];
+  char      *fname;
 
   SeedPair *khit, *hhit;
   SeedPair *work1, *work2;
@@ -2209,6 +2268,8 @@ void Match_Filter(char *aname, HITS_DB *ablock, char *bname, HITS_DB *bblock,
     if (counters == NULL)
       exit (1);
 
+    fname = NameBuffer(aname,bname);
+
     for (i = 0; i < 3*w*NTHREADS; i++)
       counters[i] = 0;
     for (i = 0; i < NTHREADS; i++)
@@ -2220,15 +2281,15 @@ void Match_Filter(char *aname, HITS_DB *ablock, char *bname, HITS_DB *bblock,
         parmr[i].lasta = parmr[i].lastp + w;
         parmr[i].work  = New_Work_Data();
 
-        parmr[i].ofile1 =
-             Fopen(Catenate(aname,".",bname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+        sprintf(fname,"%s/%s.%s.%c%d.las",SORT_PATH,aname,bname,(comp?'C':'N'),i+1);
+        parmr[i].ofile1 = Fopen(fname,"w");
         if (parmr[i].ofile1 == NULL)
           exit (1);
         if (MG_self)
           parmr[i].ofile2 = parmr[i].ofile1;
         else if (SYMMETRIC)
-          { parmr[i].ofile2 = 
-                Fopen(Catenate(bname,".",aname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+          { sprintf(fname,"%s/%s.%s.%c%d.las",SORT_PATH,bname,aname,(comp?'C':'N'),i+1);
+            parmr[i].ofile2 = Fopen(fname,"w");
             if (parmr[i].ofile2 == NULL)
               exit (1);
           }
@@ -2268,14 +2329,18 @@ zerowork:
   { FILE *ofile;
     int   i;
 
+    fname = NameBuffer(aname,bname);
+
     nhits  = 0;
     for (i = 0; i < NTHREADS; i++)
-      { ofile = Fopen(Catenate(aname,".",bname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+      { sprintf(fname,"%s/%s.%s.%c%d.las",SORT_PATH,aname,bname,(comp?'C':'N'),i+1);
+        ofile = Fopen(fname,"w");
         fwrite(&nhits,sizeof(int64),1,ofile);
         fwrite(&MR_tspace,sizeof(int),1,ofile);
         fclose(ofile);
         if (! MG_self && SYMMETRIC)
-          { ofile = Fopen(Catenate(bname,".",aname,Numbered_Suffix((comp?".C":".N"),i,".las")),"w");
+          { sprintf(fname,"%s/%s.%s.%c%d.las",SORT_PATH,bname,aname,(comp?'C':'N'),i+1);
+            ofile = Fopen(fname,"w");
             fwrite(&nhits,sizeof(int64),1,ofile);
             fwrite(&MR_tspace,sizeof(int),1,ofile);
             fclose(ofile);

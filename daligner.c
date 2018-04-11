@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include <sys/param.h>
 #if defined(BSD)
@@ -49,12 +50,13 @@
 #include "filter.h"
 
 static char *Usage[] =
-  { "[-vbAI] [-k<int(14)>] [-w<int(6)>] [-h<int(35)>] [-t<int>] [-M<int>]",
+  { "[-vbAI] [-k<int(14)>] [-w<int(6)>] [-h<int(35)>] [-t<int>] [-M<int>] [-P<dir(/tmp)>]",
     "        [-e<double(.70)] [-l<int(1000)>] [-s<int(100)>] [-H<int>] [-T<int(4)>]",
     "        [-m<track>]+ <subject:db|dam> <target:db|dam> ...",
   };
 
 int     VERBOSE;   //   Globally visible to filter.c
+char   *SORT_PATH;
 int     BIASED;
 int     MINOVER;
 int     HGAP_MIN;
@@ -177,13 +179,13 @@ static void reheap(int s, Event **heap, int hsize)
     heap[c] = hs;
 }
 
-static int64 merge_size(HITS_DB *block, int mtop)
+static int64 merge_size(DAZZ_DB *block, int mtop)
 { Event       ev[mtop+1];
   Event      *heap[mtop+2];
   int         r, mhalf;
   int64       nsize;
 
-  { HITS_TRACK *track;
+  { DAZZ_TRACK *track;
     int         i;
 
     track = block->tracks;
@@ -202,7 +204,7 @@ static int64 merge_size(HITS_DB *block, int mtop)
   nsize = 0;
   for (r = 0; r < block->nreads; r++)
     { int         i, level, hsize;
-      HITS_TRACK *track;
+      DAZZ_TRACK *track;
 
       track = block->tracks;
       for (i = 0; i < mtop; i++)
@@ -249,15 +251,15 @@ static int64 merge_size(HITS_DB *block, int mtop)
   return (nsize);
 }
 
-static HITS_TRACK *merge_tracks(HITS_DB *block, int mtop, int64 nsize)
-{ HITS_TRACK *ntrack;
+static DAZZ_TRACK *merge_tracks(DAZZ_DB *block, int mtop, int64 nsize)
+{ DAZZ_TRACK *ntrack;
   Event       ev[mtop+1];
   Event      *heap[mtop+2];
   int         r, mhalf;
   int64      *anno;
   int        *data;
 
-  ntrack = (HITS_TRACK *) Malloc(sizeof(HITS_TRACK),"Allocating merged track");
+  ntrack = (DAZZ_TRACK *) Malloc(sizeof(DAZZ_TRACK),"Allocating merged track");
   if (ntrack == NULL)
     exit (1);
   ntrack->name = Strdup("merge","Allocating merged track");
@@ -268,7 +270,7 @@ static HITS_TRACK *merge_tracks(HITS_DB *block, int mtop, int64 nsize)
   if (anno == NULL || data == NULL || ntrack->name == NULL)
     exit (1);
 
-  { HITS_TRACK *track;
+  { DAZZ_TRACK *track;
     int         i;
 
     track = block->tracks;
@@ -287,7 +289,7 @@ static HITS_TRACK *merge_tracks(HITS_DB *block, int mtop, int64 nsize)
   nsize = 0;
   for (r = 0; r < block->nreads; r++)
     { int         i, level, hsize;
-      HITS_TRACK *track;
+      DAZZ_TRACK *track;
 
       anno[r] = nsize;
 
@@ -337,7 +339,7 @@ static HITS_TRACK *merge_tracks(HITS_DB *block, int mtop, int64 nsize)
   return (ntrack);
 }
 
-static int read_DB(HITS_DB *block, char *name, char **mask, int *mstat, int mtop, int kmer)
+static int read_DB(DAZZ_DB *block, char *name, char **mask, int *mstat, int mtop, int kmer)
 { int i, isdam, status, kind, stop;
 
   isdam = Open_DB(name,block);
@@ -365,7 +367,7 @@ static int read_DB(HITS_DB *block, char *name, char **mask, int *mstat, int mtop
 
   stop = 0;
   for (i = 0; i < mtop; i++)
-    { HITS_TRACK *track;
+    { DAZZ_TRACK *track;
       int64      *anno;
       int         j;
 
@@ -382,7 +384,7 @@ static int read_DB(HITS_DB *block, char *name, char **mask, int *mstat, int mtop
 
   if (stop > 1)
     { int64       nsize;
-      HITS_TRACK *track;
+      DAZZ_TRACK *track;
 
       nsize = merge_size(block,stop);
       track = merge_tracks(block,stop,nsize);
@@ -423,10 +425,10 @@ static void complement(char *s, int len)
     *s = (char) (3-*s);
 }
 
-static HITS_DB *complement_DB(HITS_DB *block, int inplace)
-{ static HITS_DB _cblock, *cblock = &_cblock;
+static DAZZ_DB *complement_DB(DAZZ_DB *block, int inplace)
+{ static DAZZ_DB _cblock, *cblock = &_cblock;
   int            nreads;
-  HITS_READ     *reads;
+  DAZZ_READ     *reads;
   char          *seq;
   
   nreads = block->nreads;
@@ -440,7 +442,7 @@ static HITS_DB *complement_DB(HITS_DB *block, int inplace)
       if (seq == NULL)
         exit (1);
       *seq++ = 4;
-      memcpy(seq,block->bases,block->reads[nreads].boff);
+      memmove(seq,block->bases,block->reads[nreads].boff);
       *cblock = *block;
       cblock->bases  = (void *) seq;
       cblock->tracks = NULL;
@@ -461,7 +463,7 @@ static HITS_DB *complement_DB(HITS_DB *block, int inplace)
       complement(seq+reads[i].boff,reads[i].rlen);
   }
 
-  { HITS_TRACK *src, *trg;
+  { DAZZ_TRACK *src, *trg;
     int        *data, *tata;
     int         i, x, rlen;
     int64      *tano, *anno;
@@ -481,7 +483,7 @@ static HITS_DB *complement_DB(HITS_DB *block, int inplace)
                                   "Allocating dazzler interval track data");
             anno = (int64 *) Malloc(sizeof(int64)*(nreads+1),
                                     "Allocating dazzler interval track index");
-            trg  = (HITS_TRACK *) Malloc(sizeof(HITS_TRACK),
+            trg  = (DAZZ_TRACK *) Malloc(sizeof(DAZZ_TRACK),
                                          "Allocating dazzler interval track header");
             if (data == NULL || trg == NULL || anno == NULL)
               exit (1);
@@ -517,9 +519,25 @@ static HITS_DB *complement_DB(HITS_DB *block, int inplace)
   return (cblock);
 }
 
+static char *CommandBuffer(char *aname, char *bname)
+{ static char *cat = NULL;
+  static int   max = -1;
+  int len;
+
+  len = 2*(strlen(aname) + strlen(bname)) + 200;
+  if (len > max)
+    { max = ((int) (1.2*len)) + 100;
+      if ((cat = (char *) realloc(cat,max+1)) == NULL)
+        { fprintf(stderr,"%s: Out of memory (Making path name)\n",Prog_Name);
+          exit (1);
+        }
+    }
+  return (cat);
+}
+
 int main(int argc, char *argv[])
-{ HITS_DB    _ablock, _bblock;
-  HITS_DB    *ablock = &_ablock, *bblock = &_bblock;
+{ DAZZ_DB    _ablock, _bblock;
+  DAZZ_DB    *ablock = &_ablock, *bblock = &_bblock;
   char       *afile,  *bfile;
   char       *aroot,  *broot;
   void       *aindex, *bindex;
@@ -540,6 +558,7 @@ int main(int argc, char *argv[])
   { int    i, j, k;
     int    flags[128];
     char  *eptr;
+    DIR   *dirp;
 
     ARG_INIT("daligner")
 
@@ -552,6 +571,7 @@ int main(int argc, char *argv[])
     SPACING   = 100;
     MINOVER   = 1000;    //   Globally visible to filter.c
     NTHREADS  = 4;
+    SORT_PATH = "/tmp";
 
     MEM_PHYSICAL = getMemorySize();
     MEM_LIMIT    = MEM_PHYSICAL;
@@ -624,6 +644,14 @@ int main(int argc, char *argv[])
               }
             MASK[MTOP++] = argv[i]+2;
             break;
+          case 'P':
+            SORT_PATH = argv[i]+2;
+            if ((dirp = opendir(SORT_PATH)) == NULL)
+              { fprintf(stderr,"%s: -P option: cannot open directory %s\n",Prog_Name,SORT_PATH);
+                exit (1);
+              }
+            closedir(dirp);
+            break;
           case 'T':
             ARG_POSITIVE(NTHREADS,"Number of threads")
             break;
@@ -663,11 +691,12 @@ int main(int argc, char *argv[])
   else
     aroot = Root(afile,".db");
 
-  asettings = New_Align_Spec( AVE_ERROR, SPACING, ablock->freq);
+  asettings = New_Align_Spec( AVE_ERROR, SPACING, ablock->freq, 1);
 
   /* Compare against reads in B in both orientations */
 
-  { int i, j;
+  { int   i, j;
+    char *command;
 
     aindex = NULL;
     broot  = NULL;
@@ -680,6 +709,8 @@ int main(int argc, char *argv[])
             else
               broot = Root(bfile,".db");
           }
+        else
+          broot = aroot;
 
         if (i == 2)
           { for (j = 0; j < MTOP; j++)
@@ -696,7 +727,7 @@ int main(int argc, char *argv[])
             aindex = Sort_Kmers(ablock,&alen);
           }
 
-        if (strcmp(afile,bfile) != 0)
+        if (aroot != broot)
           { if (VERBOSE)
               printf("\nBuilding index for %s\n",broot);
             bindex = Sort_Kmers(bblock,&blen);
@@ -707,8 +738,6 @@ int main(int argc, char *argv[])
               printf("\nBuilding index for c(%s)\n",broot);
             bindex = Sort_Kmers(bblock,&blen);
             Match_Filter(aroot,ablock,broot,bblock,aindex,alen,bindex,blen,1,asettings);
-
-            free(broot);
           }
         else
           { Match_Filter(aroot,ablock,aroot,ablock,aindex,alen,aindex,alen,0,asettings);
@@ -724,6 +753,39 @@ int main(int argc, char *argv[])
           }
 
         Close_DB(bblock);
+
+        command = CommandBuffer(aroot,broot);
+
+        sprintf(command,"LAsort %s/%s.%s.[CN]*.las",SORT_PATH,aroot,broot);
+        if (VERBOSE)
+          printf("\n%s\n",command);
+        system(command);
+        sprintf(command,"LAmerge %s.%s.las %s/%s.%s.[CN]*.S.las",aroot,broot,SORT_PATH,aroot,broot);
+        if (VERBOSE)
+          printf("%s\n",command);
+        system(command);
+        sprintf(command,"rm %s/%s.%s.[CN]*.las",SORT_PATH,aroot,broot);
+        if (VERBOSE)
+          printf("%s\n",command);
+        system(command);
+        if (aroot != broot && SYMMETRIC)
+          { sprintf(command,"LAsort %s/%s.%s.[CN]*.las",SORT_PATH,broot,aroot);
+            if (VERBOSE)
+              printf("%s\n",command);
+            system(command);
+            sprintf(command,"LAmerge %s.%s.las %s/%s.%s.[CN]*.S.las",broot,aroot,
+                                                                     SORT_PATH,broot,aroot);
+            if (VERBOSE)
+              printf("%s\n",command);
+            system(command);
+            sprintf(command,"rm %s/%s.%s.[CN]*.las",SORT_PATH,broot,aroot);
+            if (VERBOSE)
+              printf("%s\n",command);
+            system(command);
+          }
+
+        if (aroot != broot)
+          free(broot);
       }
   }
 

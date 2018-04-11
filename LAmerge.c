@@ -48,24 +48,6 @@ static char *Usage = "[-va] <merge:las> <parts:las> ...";
   else						\
     bigger = 0;
 
-static void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
-  size_t rc = fwrite(ptr, size, nmemb, stream);
-  if (rc != nmemb) {
-    EPRINTF(EPLACE,"  Error writing %zu elements (of size %zu)\n", nmemb, size);
-    exit(1);
-  }
-}
-
-static void Fclose(FILE *stream) {
-  // An error in fclose() could be caused by an earlier failure in fwrite().
-  // 'man fclose' for details.
-  int rc = fclose(stream);
-  if (rc != 0) {
-    EPRINTF(EPLACE,"  Error closing stream.\n");
-    exit(1);
-  }
-}
-
 static void reheap(int s, Overlap **heap, int hsize)
 { int      c, l, r;
   int      bigger;
@@ -266,18 +248,17 @@ int main(int argc, char *argv[])
       input = Fopen(Catenate(pwd,"/",root,".las"),"r");
       if (input == NULL)
         exit (1);
-
-      if (fread(&novl,sizeof(int64),1,input) != 1)
-        SYSTEM_ERROR
-      totl += novl;
-      if (VERBOSE) fprintf(stdout, "In file %s, there are %lld records\n", Catenate(pwd,"/",root,".las"), novl);
       free(pwd);
       free(root);
+
+      if (fread(&novl,sizeof(int64),1,input) != 1)
+        SYSTEM_READ_ERROR
+      totl += novl;
       if (fread(&mspace,sizeof(int),1,input) != 1)
-        SYSTEM_ERROR
+        SYSTEM_READ_ERROR
       if (i == 0)
         { tspace = mspace;
-          if (tspace <= TRACE_XOVR)
+          if (tspace <= TRACE_XOVR && tspace != 0)
             tbytes = sizeof(uint8);
           else
             tbytes = sizeof(uint16);
@@ -306,8 +287,10 @@ int main(int argc, char *argv[])
     free(pwd);
     free(root);
 
-    Fwrite(&totl,sizeof(int64),1,output);
-    Fwrite(&tspace,sizeof(int),1,output);
+    if (fwrite(&totl,sizeof(int64),1,output) != 1)
+      SYSTEM_READ_ERROR
+    if (fwrite(&tspace,sizeof(int),1,output) != 1)
+      SYSTEM_READ_ERROR
 
     oblock = block+fway*bsize;
     optr   = oblock;
@@ -369,13 +352,14 @@ int main(int argc, char *argv[])
           if (src->ptr + span > src->top)
             ovl_reload(src,bsize);
           if (optr + span > otop)
-            { Fwrite(oblock,1,optr-oblock,output);
+            { if (fwrite(oblock,1,optr-oblock,output) != (size_t) (optr-oblock))
+                SYSTEM_READ_ERROR
               optr = oblock;
             }
 
-          memcpy(optr,((char *) ov) + psize,osize);
+          memmove(optr,((char *) ov) + psize,osize);
           optr += osize;
-          memcpy(optr,src->ptr,tsize);
+          memmove(optr,src->ptr,tsize);
           optr += tsize;
 
           src->ptr += tsize;
@@ -393,8 +377,10 @@ int main(int argc, char *argv[])
   //  Flush output buffer and wind up
 
   if (optr > oblock)
-    Fwrite(oblock,1,optr-oblock,output);
-  Fclose(output);
+    { if (fwrite(oblock,1,optr-oblock,output) != (size_t) (optr-oblock))
+        SYSTEM_READ_ERROR
+    }
+  fclose(output);
 
   for (i = 0; i < fway; i++)
     fclose(in[i].stream);

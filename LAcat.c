@@ -90,13 +90,13 @@ int main(int argc, char *argv[])
         if ((input = fopen(name,"r")) == NULL) break;
 
         if (fread(&povl,sizeof(int64),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
         novl += povl;
         if (fread(&mspace,sizeof(int),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
         if (i == 0)
           { tspace = mspace;
-            if (tspace <= TRACE_XOVR)
+            if (tspace <= TRACE_XOVR && tspace != 0)
               tbytes = sizeof(uint8);
             else
               tbytes = sizeof(uint16);
@@ -108,8 +108,10 @@ int main(int argc, char *argv[])
 
         fclose(input);
       }
-    fwrite(&novl,sizeof(int64),1,stdout);
-    fwrite(&tspace,sizeof(int),1,stdout);
+    if (fwrite(&novl,sizeof(int64),1,stdout) != 1)
+      SYSTEM_READ_ERROR
+    if (fwrite(&tspace,sizeof(int),1,stdout) != 1)
+      SYSTEM_READ_ERROR
   }
 
   { int      i, j;
@@ -127,9 +129,9 @@ int main(int argc, char *argv[])
         if ((input = fopen(name,"r")) == NULL) break;
 
         if (fread(&povl,sizeof(int64),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
         if (fread(&mspace,sizeof(int),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
 
         if (VERBOSE)
           fprintf(stderr,"  Concatenating %s: %lld la\'s\n",Numbered_Suffix(root,i+1,root2),povl);
@@ -141,7 +143,7 @@ int main(int argc, char *argv[])
           { if (iptr + ovlsize > itop)
               { int64 remains = itop-iptr;
                 if (remains > 0)
-                  memcpy(iblock,iptr,remains);
+                  memmove(iblock,iptr,remains);
                 iptr  = iblock;
                 itop  = iblock + remains;
                 itop += fread(itop,1,bsize-remains,input);
@@ -151,24 +153,25 @@ int main(int argc, char *argv[])
             tsize = w->path.tlen*tbytes;
 
             if (optr + ovlsize + tsize > otop)
-              { fwrite(oblock,1,optr-oblock,stdout);
+              { if (fwrite(oblock,1,optr-oblock,stdout) != (size_t) (optr-oblock))
+                  SYSTEM_READ_ERROR
                 optr = oblock;
               }
 
-            memcpy(optr,iptr,ovlsize);
+            memmove(optr,iptr,ovlsize);
             optr += ovlsize;
             iptr += ovlsize;
 
             if (iptr + tsize > itop)
               { int64 remains = itop-iptr;
                 if (remains > 0)
-                  memcpy(iblock,iptr,remains);
+                  memmove(iblock,iptr,remains);
                 iptr  = iblock;
                 itop  = iblock + remains;
                 itop += fread(itop,1,bsize-remains,input);
               }
             
-            memcpy(optr,iptr,tsize);
+            memmove(optr,iptr,tsize);
             optr += tsize;
             iptr += tsize;
           }
@@ -177,7 +180,9 @@ int main(int argc, char *argv[])
       }
 
     if (optr > oblock)
-      fwrite(oblock,1,optr-oblock,stdout);
+      { if (fwrite(oblock,1,optr-oblock,stdout) != (size_t) (optr-oblock))
+          SYSTEM_READ_ERROR
+      }
   }
 
   if (VERBOSE)

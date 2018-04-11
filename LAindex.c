@@ -80,10 +80,10 @@ int main(int argc, char *argv[])
         exit (1);
     
       if (fread(&novl,sizeof(int64),1,input) != 1)
-        SYSTEM_ERROR
+        SYSTEM_READ_ERROR
       if (fread(&tspace,sizeof(int),1,input) != 1)
-        SYSTEM_ERROR
-      if (tspace <= TRACE_XOVR)
+        SYSTEM_READ_ERROR
+      if (tspace <= TRACE_XOVR && tspace != 0)
         tbytes = sizeof(uint8);
       else
         tbytes = sizeof(uint16);
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
           { if (iptr + ovlsize > itop)
               { int64 remains = itop-iptr;
                 if (remains > 0)
-                  memcpy(iblock,iptr,remains);
+                  memmove(iblock,iptr,remains);
                 iptr  = iblock;
                 itop  = iblock + remains;
                 itop += fread(itop,1,bsize-remains,input);
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
             if (iptr + tsize > itop)
               { int64 remains = itop-iptr;
                 if (remains > 0)
-                  memcpy(iblock,iptr,remains);
+                  memmove(iblock,iptr,remains);
                 iptr  = iblock;
                 itop  = iblock + remains;
                 itop += fread(itop,1,bsize-remains,input);

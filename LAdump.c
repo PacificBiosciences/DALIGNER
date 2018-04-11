@@ -22,7 +22,7 @@
 #include "align.h"
 
 static char *Usage =
-    "[-cdt] [-o] <src1:db|dam> [ <src2:db|dam> ] <align:las> [ <reads:FILE> | <reads:range> ... ]";
+    "[-cdtlo] <src1:db|dam> [<src2:db|dam>] <align:las> [<reads:FILE> | <reads:range> ...]";
 
 #define LAST_READ_SYMBOL  '$'
 
@@ -33,18 +33,19 @@ static int ORDER(const void *l, const void *r)
 }
 
 int main(int argc, char *argv[])
-{ HITS_DB   _db1, *db1 = &_db1; 
-  HITS_DB   _db2, *db2 = &_db2; 
+{ DAZZ_DB   _db1, *db1 = &_db1; 
+  DAZZ_DB   _db2, *db2 = &_db2; 
   Overlap   _ovl, *ovl = &_ovl;
 
   FILE   *input;
   int64   novl;
   int     tspace, tbytes, small;
+  int     tmax;
   int     reps, *pts;
   int     input_pts;
 
   int     OVERLAP;
-  int     DOCOORDS, DODIFFS, DOTRACE;
+  int     DOCOORDS, DODIFFS, DOTRACE, DOLENS;
   int     ISTWO;
 
   //  Process options
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
       if (argv[i][0] == '-')
         switch (argv[i][1])
         { default:
-            ARG_FLAGS("ocdtUF")
+            ARG_FLAGS("ocdtl")
             break;
         }
       else
@@ -70,12 +71,33 @@ int main(int argc, char *argv[])
     DOCOORDS  = flags['c'];
     DODIFFS   = flags['d'];
     DOTRACE   = flags['t'];
+    DOLENS    = flags['l'];
 
     if (DOTRACE)
       DOCOORDS = 1;
 
     if (argc <= 2)
       { fprintf(stderr,"Usage: %s %s\n",Prog_Name,Usage);
+        fprintf(stderr,"\n");
+        fprintf(stderr,"      P #a #b #o #c     -");
+        fprintf(stderr," (#a,#b^#o) have an LA between them where #o is 'n' or 'c' and\n");
+        fprintf(stderr,"                         ");
+        fprintf(stderr,"   #c is '>' (start of best chain), '+' (start of alternate chain),\n");
+        fprintf(stderr,"                         ");
+        fprintf(stderr,"   '-' (continuation of chain), or '.' (no chains in file).\n");
+        fprintf(stderr,"\n");
+        fprintf(stderr,"      -c: C #ab #ae #bb #be - #a[#ab,#ae] aligns with #b^#o[#bb,#be]\n");
+        fprintf(stderr,"      -d: D #               - there are # differences in the LA\n");
+        fprintf(stderr,"      -t: T #n              -");
+        fprintf(stderr," there are #n trace point intervals for the LA\n");
+        fprintf(stderr,"           (#d #y )^#n      -");
+        fprintf(stderr," there are #d difference aligning the #y bp's of B with the\n");
+        fprintf(stderr,"                                 next fixed-size interval of A\n");
+        fprintf(stderr,"      -l: L #la #lb         -");
+        fprintf(stderr," #la is the length of the a-read and #lb that of the b-read\n");
+        fprintf(stderr,"\n");
+        fprintf(stderr,"      -o: Output proper overlaps only\n");
+
         exit (1);
       }
   }
@@ -258,11 +280,11 @@ int main(int argc, char *argv[])
       exit (1);
 
     if (fread(&novl,sizeof(int64),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     if (fread(&tspace,sizeof(int),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
 
-    if (tspace <= TRACE_XOVR)
+    if (tspace <= TRACE_XOVR && tspace != 0)
       { small  = 1;
         tbytes = sizeof(uint8);
       }
@@ -279,7 +301,7 @@ int main(int argc, char *argv[])
 
   { int   j, al, tlen;
     int   in, npt, idx, ar;
-    int64 novls, odeg, omax, sdeg, smax, ttot, tmax;
+    int64 novls, odeg, omax, sdeg, smax, ttot;
 
     in  = 0;
     npt = pts[0];
@@ -359,31 +381,30 @@ int main(int argc, char *argv[])
 
     printf("+ P %lld\n",novls);
     printf("%% P %lld\n",omax);
-    printf("+ T %lld\n",ttot);
-    printf("%% T %lld\n",smax);
-    printf("@ T %lld\n",tmax);
+    if (DOTRACE)
+      { printf("+ T %lld\n",ttot);
+        printf("%% T %lld\n",smax);
+        printf("@ T %d\n",tmax);
+      }
   }
 
   //  Read the file and display selected records
   
-  { int        j;
+  { int        j, k;
     uint16    *trace;
-    int        tmax;
     int        in, npt, idx, ar;
-    int64      verse;
+    DAZZ_READ *read1, *read2;
 
     rewind(input);
-    fread(&verse,sizeof(int64),1,input);
+    fread(&novl,sizeof(int64),1,input);
     fread(&tspace,sizeof(int),1,input);
-    if (verse < 0)
-      { for (j = 0; j < 5; j++)
-          fread(&verse,sizeof(int64),1,input);
-      }
 
-    tmax  = 1000;
     trace = (uint16 *) Malloc(sizeof(uint16)*tmax,"Allocating trace vector");
     if (trace == NULL)
       exit (1);
+
+    read1 = db1->reads;
+    read2 = db2->reads;
 
     in  = 0;
     npt = pts[0];
@@ -396,12 +417,6 @@ int main(int argc, char *argv[])
        //  Read it in
 
       { Read_Overlap(input,ovl);
-        if (ovl->path.tlen > tmax)
-          { tmax = ((int) 1.2*ovl->path.tlen) + 100;
-            trace = (uint16 *) Realloc(trace,sizeof(uint16)*tmax,"Allocating trace vector");
-            if (trace == NULL)
-              exit (1);
-          }
         ovl->path.trace = (void *) trace;
         Read_Trace(input,ovl,tbytes);
 
@@ -458,6 +473,9 @@ int main(int argc, char *argv[])
           printf(" .");
         printf("\n");
 
+        if (DOLENS)
+          printf("L %d %d\n",read1[ovl->aread].rlen,read2[ovl->bread].rlen);
+
         if (DOCOORDS)
           printf("C %d %d %d %d\n",ovl->path.abpos,ovl->path.aepos,ovl->path.bbpos,ovl->path.bepos);
 
@@ -471,8 +489,8 @@ int main(int argc, char *argv[])
             if (small)
               Decompress_TraceTo16(ovl);
             printf("T %d\n",tlen>>1);
-            for (j = 0; j < tlen; j += 2)
-              printf(" %3d %3d\n",trace[j],trace[j+1]);
+            for (k = 0; k < tlen; k += 2)
+              printf(" %3d %3d\n",trace[k],trace[k+1]);
           }
       }
 

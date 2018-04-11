@@ -25,24 +25,6 @@ static char *Usage = "[-va] <align:las> ...";
 
 static char *IBLOCK;
 
-static void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
-  size_t rc = fwrite(ptr, size, nmemb, stream);
-  if (rc != nmemb) {
-    EPRINTF(EPLACE,"  Error writing %zu elements (of size %zu)\n", nmemb, size);
-    exit(1);
-  }
-}
-
-static void Fclose(FILE *stream) {
-  // An error in fclose() could be caused by an earlier failure in fwrite().
-  // 'man fclose' for details.
-  int rc = fclose(stream);
-  if (rc != 0) {
-    EPRINTF(EPLACE,"  Error closing stream.\n");
-    exit(1);
-  }
-}
-
 static int SORT_OVL(const void *x, const void *y)
 { int64 l = *((int64 *) x);
   int64 r = *((int64 *) y);
@@ -67,7 +49,7 @@ static int SORT_OVL(const void *x, const void *y)
     return (bl-br);
 
   cl = COMP(ol->flags);
-  cr = COMP(ol->flags);
+  cr = COMP(or->flags);
   if (cl != cr)
     return (cl-cr);
 
@@ -178,11 +160,11 @@ int main(int argc, char *argv[])
         size = info.st_size;
 
         if (fread(&novl,sizeof(int64),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
         if (fread(&tspace,sizeof(int),1,input) != 1)
-          SYSTEM_ERROR
+          SYSTEM_READ_ERROR
 
-        if (tspace <= TRACE_XOVR)
+        if (tspace <= TRACE_XOVR && tspace != 0)
           tbytes = sizeof(uint8);
         else
           tbytes = sizeof(uint16);
@@ -200,8 +182,10 @@ int main(int argc, char *argv[])
         if (foutput == NULL)
           exit (1);
 
-        Fwrite(&novl,sizeof(int64),1,foutput);
-        Fwrite(&tspace,sizeof(int),1,foutput);
+        if (fwrite(&novl,sizeof(int64),1,foutput) != 1)
+          SYSTEM_READ_ERROR
+        if (fwrite(&tspace,sizeof(int),1,foutput) != 1)
+          SYSTEM_READ_ERROR
 
         free(pwd);
         free(root);
@@ -219,7 +203,7 @@ int main(int argc, char *argv[])
         size -= (sizeof(int64) + sizeof(int));
         if (size > 0)
           { if (fread(iblock,size,1,input) != 1)
-              SYSTEM_ERROR
+              SYSTEM_READ_ERROR
           }
         fclose(input);
         iend = iblock + (size - ptrsize);
@@ -276,23 +260,26 @@ int main(int argc, char *argv[])
               { tsize = w->path.tlen*tbytes;
                 span  = ovlsize + tsize;
                 if (fptr + span > ftop)
-                  { Fwrite(fblock,1,fptr-fblock,foutput);
+                  { if (fwrite(fblock,1,fptr-fblock,foutput) != (size_t) (fptr-fblock))
+                      SYSTEM_READ_ERROR
                     fptr = fblock;
                   }
-                memcpy(fptr,((char *) w)+ptrsize,ovlsize);
+                memmove(fptr,((char *) w)+ptrsize,ovlsize);
                 fptr += ovlsize;
-                memcpy(fptr,(char *) (w+1),tsize);
+                memmove(fptr,(char *) (w+1),tsize);
                 fptr += tsize;
                 w = (Overlap *) (wo += span);
               }
             while (wo < iend && CHAIN_NEXT(w->flags));
           }
         if (fptr > fblock)
-          Fwrite(fblock,1,fptr-fblock,foutput);
+          { if (fwrite(fblock,1,fptr-fblock,foutput) != (size_t) (fptr-fblock))
+              SYSTEM_READ_ERROR
+          }
       }
 
       free(perm);
-      Fclose(foutput);
+      fclose(foutput);
     }
 
   if (iblock != NULL)

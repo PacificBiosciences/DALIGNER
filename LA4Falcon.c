@@ -147,7 +147,7 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
     return added;
 }
 
-static void print_hits(const int hit_count, HITS_DBX *dbx2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
+static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
     int tmp_idx;
     qsort(ovlgrps, (hit_count+1), sizeof(OverlapGroup), compare_ovlgrps);
     for (tmp_idx = 0; tmp_idx < (hit_count+1) && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
@@ -182,10 +182,10 @@ static int ORDER(const void *l, const void *r)
 }
 
 int main(int argc, char *argv[])
-{ HITS_DBX   _dbx1, *dbx1 = &_dbx1;
-  HITS_DBX   _dbx2, *dbx2 = &_dbx2;
-  HITS_DB *db1 = &dbx1->db;
-  HITS_DB *db2 = &dbx2->db;
+{ DAZZ_DBX   _dbx1, *dbx1 = &_dbx1;
+  DAZZ_DBX   _dbx2, *dbx2 = &_dbx2;
+  DAZZ_DB *db1 = &dbx1->db;
+  DAZZ_DB *db2 = &dbx2->db;
   Overlap   _ovl, *ovl = &_ovl;
   Alignment _aln, *aln = &_aln;
 
@@ -457,9 +457,9 @@ int main(int argc, char *argv[])
       exit (1);
 
     if (fread(&novl,sizeof(int64),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     if (fread(&tspace,sizeof(int),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
 
     if (tspace == 0) {
         printf("\nCRITICAL ERROR: tspace=0 in '%s'", root);

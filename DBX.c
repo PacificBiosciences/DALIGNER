@@ -6,7 +6,7 @@
 #include <assert.h>
 
 // From Jason, with 1 change
-static char* Load_Read_Data(HITS_DB *db) {
+static char* Load_Read_Data(DAZZ_DB *db) {
   FILE  *bases  = (FILE*) db->bases;
   struct stat sbuf;
   char  *data;
@@ -22,7 +22,7 @@ static char* Load_Read_Data(HITS_DB *db) {
 }
 
 // Wrapper
-int Open_DBX(char *path, HITS_DBX *dbx, bool preload) {
+int Open_DBX(char *path, DAZZ_DBX *dbx, bool preload) {
   dbx->data = NULL;
   int rc = Open_DB(path, &dbx->db);
   switch (rc) {
@@ -44,10 +44,10 @@ int Open_DBX(char *path, HITS_DBX *dbx, bool preload) {
 }
 
 // From Jason
-static int Load_Read_From_RAM(HITS_DB *db, char *data, int i, char *read, int ascii) {
+static int Load_Read_From_RAM(DAZZ_DB *db, char *data, int i, char *read, int ascii) {
   int64      off;
   int        len, clen;
-  HITS_READ *r = db->reads;
+  DAZZ_READ *r = db->reads;
 
   if (i >= db->nreads) { EXIT(1); }
 
@@ -70,7 +70,7 @@ static int Load_Read_From_RAM(HITS_DB *db, char *data, int i, char *read, int as
 }
 
 // Wrapper
-int Load_ReadX(HITS_DBX *dbx, int i, char *read, int ascii) {
+int Load_ReadX(DAZZ_DBX *dbx, int i, char *read, int ascii) {
   if (dbx->data) {
     return Load_Read_From_RAM(&dbx->db, dbx->data, i, read, ascii);
   } else {
@@ -79,7 +79,7 @@ int Load_ReadX(HITS_DBX *dbx, int i, char *read, int ascii) {
 }
 
 // Wrapper
-void Close_DBX(HITS_DBX *dbx) {
+void Close_DBX(DAZZ_DBX *dbx) {
   Close_DB(&dbx->db);
   if (dbx->data) free(dbx->data);
 }

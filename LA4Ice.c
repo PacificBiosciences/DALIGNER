@@ -72,8 +72,8 @@ static int ORDER(const void *l, const void *r)
 }
 
 int main(int argc, char *argv[])
-{ HITS_DB   _db1, *db1 = &_db1; 
-  HITS_DB   _db2, *db2 = &_db2; 
+{ DAZZ_DB   _db1, *db1 = &_db1; 
+  DAZZ_DB   _db2, *db2 = &_db2; 
   Overlap   _ovl, *ovl = &_ovl;
   Alignment _aln, *aln = &_aln;
 
@@ -259,9 +259,9 @@ int main(int argc, char *argv[])
       exit (1);
 
     if (fread(&novl,sizeof(int64),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
     if (fread(&tspace,sizeof(int),1,input) != 1)
-      SYSTEM_ERROR
+      SYSTEM_READ_ERROR
 
     if (tspace <= TRACE_XOVR)
       { small  = 1;
