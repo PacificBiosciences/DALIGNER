@@ -18,7 +18,8 @@ daligner_p: filter_p.o
 LA4Falcon: DBX.o
 ${ALL}: libdazzdb.a
 
-libdazzdb.a: libdazzdb.a(DB.o QV.o align.o)
+libdazzdb.a: DB.o QV.o align.o
+	${AR} rv $@ $^
 
 install:
 	rsync -av ${ALL} ${PREFIX}/bin
