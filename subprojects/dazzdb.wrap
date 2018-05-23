@@ -1,0 +1,4 @@
+[wrap-git]
+directory=dazz_db
+url=https://github.com/PacificBiosciences/DAZZ_DB.git
+revision=develop
