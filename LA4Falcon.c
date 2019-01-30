@@ -147,7 +147,7 @@ static bool add_overlap(const Alignment *aln, const Overlap *ovl, const int coun
     return added;
 }
 
-static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char buffer[], int64 bsize, const int MAX_HIT_COUNT) {
+static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char buffer[], int64 bsize, int alen, const int MAX_HIT_COUNT, int WRITE_MAPPING_COORDS) {
     int tmp_idx;
     qsort(ovlgrps, (hit_count+1), sizeof(OverlapGroup), compare_ovlgrps);
     for (tmp_idx = 0; tmp_idx < (hit_count+1) && tmp_idx < MAX_HIT_COUNT; tmp_idx++) {
@@ -160,7 +160,18 @@ static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char 
         if (rlen < bsize) {
             strncpy( buffer, bbuffer + grp->beg.path.bbpos, rlen );
             buffer[rlen] = '\0';
-            printf("%08d %s\n", grp->end.bread, buffer);
+
+            if (WRITE_MAPPING_COORDS) {
+                // The sequence is clipped.
+                int bbpos = 0;
+                int bepos = rlen;
+                printf("%08d %s %d %d %d %d %d %d %d %s\n", grp->end.bread, buffer,
+                            0, bbpos, bepos, grp->blen,
+                            grp->beg.path.abpos, grp->end.path.aepos, alen, "*");
+
+            } else {
+                printf("%08d %s\n", grp->end.bread, buffer);
+            }
         } else {
             fprintf(stderr, "[WARNING]Skipping super-long read %08d, len=%lld, buf=%lld\n", grp->end.bread, rlen, bsize);
         }
@@ -204,6 +215,8 @@ int main(int argc, char *argv[])
   int     SEED_MIN, MAX_HIT_COUNT, SKIP;
   int     PRELOAD;
 
+  int WRITE_MAPPING_COORDS;
+
   //  Process options
 
   { int    i, j, k;
@@ -227,12 +240,14 @@ int main(int argc, char *argv[])
     FLIP      = 0;
     MAX_HIT_COUNT = 400;
 
+    WRITE_MAPPING_COORDS = 0;
+
     j = 1;
     for (i = 1; i < argc; i++)
       if (argv[i][0] == '-')
         switch (argv[i][1])
         { default:
-            ARG_FLAGS("smfocargUFMP")
+            ARG_FLAGS("smfocargUFMPy")
             break;
           case 'i':
             ARG_NON_NEGATIVE(INDENT,"Indent")
@@ -267,12 +282,19 @@ int main(int argc, char *argv[])
     SKIP      = flags['s'];
     GROUP     = flags['g'];
     PRELOAD   = flags['P']; // Preload DB reads, if possible.
+    WRITE_MAPPING_COORDS = flags['y'];
 
     if (argc <= 2)
       { fprintf(stderr,"Usage: %s %s\n",Prog_Name,Usage[0]);
         fprintf(stderr,"       %*s %s\n",(int) strlen(Prog_Name),"",Usage[1]);
         exit (1);
       }
+  }
+
+  if (WRITE_MAPPING_COORDS && FALCON) {
+      fprintf(stderr, "[DALIGNER Info] Mapping coordinates will be written for FALCON consensus.\n");
+  } else {
+      fprintf(stderr, "[DALIGNER Info] No mapping coordinates will be written for FALCON consensus. The consensus will have to re-map.\n");
   }
 
   //  Open trimmed DB or DB pair
@@ -735,16 +757,25 @@ int main(int argc, char *argv[])
           {
             if (p_aread == -1) {
                 Load_ReadX(dbx1, ovl->aread, abuffer, 2);
-                printf("%08d %s\n", ovl->aread, abuffer);
+                if (WRITE_MAPPING_COORDS) {
+                    printf("%08d %s %d %d %d %d %d %d %d %s\n", ovl->aread, abuffer, 0, 0, aln->alen, aln->alen, 0, aln->alen, aln->alen, "*");
+                } else {
+                    printf("%08d %s\n", ovl->aread, abuffer);
+                }
                 p_aread = ovl->aread;
                 skip_rest = 0;
             }
             if (p_aread != ovl -> aread ) {
-                print_hits(hit_count, dbx2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
+                print_hits(hit_count, dbx2, bbuffer, buffer, (int64)sizeof(buffer), aln->alen, MAX_HIT_COUNT, WRITE_MAPPING_COORDS);
                 hit_count = -1;
 
                 Load_ReadX(dbx1, ovl->aread, abuffer, 2);
-                printf("%08d %s\n", ovl->aread, abuffer);
+
+                if (WRITE_MAPPING_COORDS) {
+                    printf("%08d %s %d %d %d %d %d %d %d %s\n", ovl->aread, abuffer, 0, 0, aln->alen, aln->alen, 0, aln->alen, aln->alen, "*");
+                } else {
+                    printf("%08d %s\n", ovl->aread, abuffer);
+                }
                 p_aread = ovl->aread;
                 skip_rest = 0;
             }
@@ -871,7 +902,7 @@ int main(int argc, char *argv[])
 
     if (FALCON && hit_count != -1)
       {
-        print_hits(hit_count, dbx2, bbuffer, buffer, (int64)sizeof(buffer), MAX_HIT_COUNT);
+        print_hits(hit_count, dbx2, bbuffer, buffer, (int64)sizeof(buffer), aln->alen, MAX_HIT_COUNT, WRITE_MAPPING_COORDS);
         printf("- -\n");
         free(ovlgrps);
       }
