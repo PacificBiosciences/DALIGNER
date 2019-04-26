@@ -1,6 +1,6 @@
 THISDIR:=$(abspath $(dir $(realpath $(lastword ${MAKEFILE_LIST}))))
 #LIBDIRS?=${THISDIR}/../DAZZ_DB
-CFLAGS+= -O3 -Wall -Wextra -fno-strict-aliasing -Wno-unused-result
+CFLAGS+= -O3 -Wall -Wextra -fno-strict-aliasing -Wno-unused-result -DWORD_SIZE=16
 #CPPFLAGS+= -I${THISDIR}/../DAZZ_DB -I${PREFIX}/include
 #CPPFLAGS+= -MMD -MP
 LDLIBS+= -lm -lpthread
@@ -13,8 +13,8 @@ vpath %.c ${THISDIR}
 %: %.c
 
 all: ${ALL}
-daligner: filter.o
-daligner_p: filter_p.o
+daligner: radix.o filter.o
+daligner_p: radix.o filter_p.o
 LA4Falcon: DBX.o
 ${ALL}: libdazzdb.a
 
