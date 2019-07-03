@@ -180,7 +180,7 @@ static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char 
 }
 
 static char *Usage[] =
-    { "[-mfsocargUFM] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
+    { "[-smfocargyUFMPI] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
       "    <src1:db|dam> [ <src2:db|dam> ] <align:las> [ <reads:FILE> | <reads:range> ... ]"
     };
 
@@ -296,6 +296,7 @@ int main(int argc, char *argv[])
 
     FALCON    = 0;
     M4OVL     = 0;
+    II        = 0;
     SEED_MIN  = 8000;
     SKIP      = 0;
 
@@ -312,7 +313,7 @@ int main(int argc, char *argv[])
       if (argv[i][0] == '-')
         switch (argv[i][1])
         { default:
-            ARG_FLAGS("smfocargUFMPy")
+            ARG_FLAGS("smfocargUFMPIy")
             break;
           case 'i':
             ARG_NON_NEGATIVE(INDENT,"Indent")
@@ -347,6 +348,7 @@ int main(int argc, char *argv[])
     SKIP      = flags['s'];
     GROUP     = flags['g'];
     PRELOAD   = flags['P']; // Preload DB reads, if possible.
+    II        = flags['I']; // Ignore indels. Accuracy counts mismatches only. With "-m" flag.
     WRITE_MAPPING_COORDS = flags['y'];
 
     if (argc <= 2)
@@ -590,7 +592,7 @@ int main(int argc, char *argv[])
     int        hit_count;
 
     aln->path = &(ovl->path);
-    if (ALIGN || REFERENCE || FALCON)
+    if (ALIGN || REFERENCE || FALCON || (M4OVL && II))
       { work = New_Work_Data();
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
@@ -782,11 +784,14 @@ int main(int argc, char *argv[])
         //  Display it
         if (M4OVL)
           {
+            if (II) {
+              /* Compute the full alignment from trace points so that aln->path->tlen
+               *     is equal to the number of indels in the alignment. */
+              ComputeTlens(small);
+            }
+
             int64 bbpos, bepos;
             double acc;
-
-
-
             if (COMP(ovl->flags)) {
                 bbpos = (int64) aln->blen - (int64) ovl->path.bepos;
                 bepos = (int64) aln->blen - (int64) ovl->path.bbpos;
@@ -796,11 +801,15 @@ int main(int argc, char *argv[])
             }
             double const ovllen = 0.5*((ovl->path.aepos - ovl->path.abpos) + (ovl->path.bepos - ovl->path.bbpos));
             int diffs = aln->path->diffs;
+            if (II) {
+              /* Ignore Indels. */
+              diffs -= (aln->path->tlen);
+            }
             acc = 100-(100. * diffs)/ovllen;
-            printf("%09lld %09lld %lld %5.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos
-, acc);
+            printf("%09lld %09lld %lld %5.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
             printf("0 %lld %lld %lld ", (int64) ovl->path.abpos, (int64) ovl->path.aepos, (int64) aln->alen);
             printf("%d %lld %lld %lld ", COMP(ovl->flags), bbpos, bepos, (int64) aln->blen);
+
             if ( ((int64) aln->blen < (int64) aln->alen) && ((int64) ovl->path.bbpos < 1) && ((int64) aln->blen - (int64) ovl->path.bepos < 1) )
               {
                 printf("contains\n");
@@ -814,7 +823,6 @@ int main(int argc, char *argv[])
               {
                 printf("overlap\n");
               }
-
           }
         if (FALCON)
           {
@@ -924,7 +932,7 @@ int main(int argc, char *argv[])
 
 
     free(trace);
-    if (ALIGN || FALCON)
+    if (NULL != work)
       { free(bbuffer-1);
         free(abuffer-1);
         Free_Work_Data(work);
