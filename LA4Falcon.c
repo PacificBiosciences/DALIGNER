@@ -732,8 +732,9 @@ int main(int argc, char *argv[])
                 bbpos = (int64) ovl->path.bbpos;
                 bepos = (int64) ovl->path.bepos;
             }
-            acc = 100-(200. * ovl->path.diffs)/( ovl->path.aepos - ovl->path.abpos + ovl->path.bepos - ovl->path.bbpos
-);
+            double const ovllen = 0.5*((ovl->path.aepos - ovl->path.abpos) + (ovl->path.bepos - ovl->path.bbpos));
+            int diffs = aln->path->diffs;
+            acc = 100-(100. * diffs)/ovllen;
             printf("%09lld %09lld %lld %5.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos
 , acc);
             printf("0 %lld %lld %lld ", (int64) ovl->path.abpos, (int64) ovl->path.aepos, (int64) aln->alen);
