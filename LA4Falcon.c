@@ -192,7 +192,7 @@ static int ORDER(const void *l, const void *r)
   return (x-y);
 }
 
-/* globals, for use in ComputeTlens() */
+/* globals, for use in Compute_Detailed_Alignment() */
 DAZZ_DB *db1;
 DAZZ_DB *db2;
 Overlap *ovl;
@@ -206,13 +206,13 @@ int     ALIGN, CARTOON, REFERENCE, FLIP;
 int     INDENT, WIDTH, BORDER, UPPERCASE;
 int     ISTWO;
 int     MAP;
-int     FALCON, OVERLAP, M4OVL, II;
+int     FALCON, OVERLAP, M4OVL, IGNORE_INDELS;
 // XXX: MAX_HIT_COUNT should be renamed
 int     SEED_MIN, MAX_HIT_COUNT, SKIP;
 int     PRELOAD;
 int     WRITE_MAPPING_COORDS;
 
-void ComputeTlens(
+void Compute_Detailed_Alignment(
     int small)
 {
                 char *aseq, *bseq;
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
 
     FALCON    = 0;
     M4OVL     = 0;
-    II        = 0;
+    IGNORE_INDELS = 0;
     SEED_MIN  = 8000;
     SKIP      = 0;
 
@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
     SKIP      = flags['s'];
     GROUP     = flags['g'];
     PRELOAD   = flags['P']; // Preload DB reads, if possible.
-    II        = flags['I']; // Ignore indels. Accuracy counts mismatches only. With "-m" flag.
+    IGNORE_INDELS = flags['I']; // Ignore indels. Accuracy counts mismatches only. With "-m" flag.
     WRITE_MAPPING_COORDS = flags['y'];
 
     if (argc <= 2)
@@ -592,7 +592,7 @@ int main(int argc, char *argv[])
     int        hit_count;
 
     aln->path = &(ovl->path);
-    if (ALIGN || REFERENCE || FALCON || (M4OVL && II))
+    if (ALIGN || REFERENCE || FALCON || (M4OVL && IGNORE_INDELS))
       { work = New_Work_Data();
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
@@ -784,12 +784,6 @@ int main(int argc, char *argv[])
         //  Display it
         if (M4OVL)
           {
-            if (II) {
-              /* Compute the full alignment from trace points so that aln->path->tlen
-               *     is equal to the number of indels in the alignment. */
-              ComputeTlens(small);
-            }
-
             int64 bbpos, bepos;
             double acc;
             if (COMP(ovl->flags)) {
@@ -801,12 +795,14 @@ int main(int argc, char *argv[])
             }
             double const ovllen = 0.5*((ovl->path.aepos - ovl->path.abpos) + (ovl->path.bepos - ovl->path.bbpos));
             int diffs = aln->path->diffs;
-            if (II) {
-              /* Ignore Indels. */
+            if (IGNORE_INDELS) {
+              /* Compute the detailed alignment from trace points so that aln->path->tlen
+               *     is equal to the number of indels in the alignment. */
+              Compute_Detailed_Alignment(small);
               diffs -= (aln->path->tlen);
             }
             acc = 100-(100. * diffs)/ovllen;
-            printf("%09lld %09lld %lld %5.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
+            printf("%09lld %09lld %lld %7.3f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
             printf("0 %lld %lld %lld ", (int64) ovl->path.abpos, (int64) ovl->path.aepos, (int64) aln->alen);
             printf("%d %lld %lld %lld ", COMP(ovl->flags), bbpos, bepos, (int64) aln->blen);
 
@@ -889,7 +885,7 @@ int main(int argc, char *argv[])
 
         if (ALIGN || CARTOON || REFERENCE)
           { if (ALIGN || REFERENCE)
-              ComputeTlens(small);
+              Compute_Detailed_Alignment(small);
             if (CARTOON)
               { printf("  (");
                 Print_Number(tps,tp_wide,stdout);
