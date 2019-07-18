@@ -802,7 +802,7 @@ int main(int argc, char *argv[])
               diffs -= (aln->path->tlen);
             }
             acc = 100-(100. * diffs)/ovllen;
-            printf("%09lld %09lld %lld %0.3f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
+            printf("%09lld %09lld %lld %0.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
             printf("0 %lld %lld %lld ", (int64) ovl->path.abpos, (int64) ovl->path.aepos, (int64) aln->alen);
             printf("%d %lld %lld %lld ", COMP(ovl->flags), bbpos, bepos, (int64) aln->blen);
 
