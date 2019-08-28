@@ -180,7 +180,7 @@ static void print_hits(const int hit_count, DAZZ_DBX *dbx2, char *bbuffer, char 
 }
 
 static char *Usage[] =
-    { "[-mfsocargUFM] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
+    { "[-smfocargyUFMPI] [-i<int(4)>] [-w<int(100)>] [-b<int(10)>] ",
       "    <src1:db|dam> [ <src2:db|dam> ] <align:las> [ <reads:FILE> | <reads:range> ... ]"
     };
 
@@ -192,30 +192,95 @@ static int ORDER(const void *l, const void *r)
   return (x-y);
 }
 
+/* globals, for use in Compute_Detailed_Alignment() */
+DAZZ_DB *db1;
+DAZZ_DB *db2;
+Overlap *ovl;
+Alignment *aln;
+int     tspace, tbytes, small;
+uint16    *trace;
+Work_Data *work;
+char      *abuffer, *bbuffer;
+
+int     ALIGN, CARTOON, REFERENCE, FLIP;
+int     INDENT, WIDTH, BORDER, UPPERCASE;
+int     ISTWO;
+int     MAP;
+int     FALCON, OVERLAP, M4OVL, IGNORE_INDELS;
+// XXX: MAX_HIT_COUNT should be renamed
+int     SEED_MIN, MAX_HIT_COUNT, SKIP;
+int     PRELOAD;
+int     WRITE_MAPPING_COORDS;
+
+void Compute_Detailed_Alignment(
+    int small)
+{
+                char *aseq, *bseq;
+                int   amin,  amax;
+                int   bmin,  bmax;
+
+                if (FLIP)
+                  Flip_Alignment(aln,0);
+                if (small)
+                  Decompress_TraceTo16(ovl);
+
+                amin = ovl->path.abpos - BORDER;
+                if (amin < 0) amin = 0;
+                amax = ovl->path.aepos + BORDER;
+                if (amax > aln->alen) amax = aln->alen;
+                if (COMP(aln->flags))
+                  { bmin = (aln->blen-ovl->path.bepos) - BORDER;
+                    if (bmin < 0) bmin = 0;
+                    bmax = (aln->blen-ovl->path.bbpos) + BORDER;
+                    if (bmax > aln->blen) bmax = aln->blen;
+                  }
+                else
+                  { bmin = ovl->path.bbpos - BORDER;
+                    if (bmin < 0) bmin = 0;
+                    bmax = ovl->path.bepos + BORDER;
+                    if (bmax > aln->blen) bmax = aln->blen;
+                  }
+
+                aseq = Load_Subread(db1,ovl->aread,amin,amax,abuffer,0);
+                bseq = Load_Subread(db2,ovl->bread,bmin,bmax,bbuffer,0);
+
+                aln->aseq = aseq - amin;
+                if (COMP(aln->flags))
+                  { Complement_Seq(bseq,bmax-bmin);
+                    aln->bseq = bseq - (aln->blen - bmax);
+                  }
+                else
+                  aln->bseq = bseq - bmin;
+
+                Compute_Trace_PTS(aln,work,tspace,GREEDIEST);
+
+                if (FLIP)
+                  { if (COMP(aln->flags))
+                      { Complement_Seq(aseq,amax-amin);
+                        Complement_Seq(bseq,bmax-bmin);
+                        aln->aseq = aseq - (aln->alen - amax);
+                        aln->bseq = bseq - bmin;
+                      }
+                    Flip_Alignment(aln,1);
+                  }
+}
+
 int main(int argc, char *argv[])
-{ DAZZ_DBX   _dbx1, *dbx1 = &_dbx1;
+{
+  DAZZ_DBX   _dbx1, *dbx1 = &_dbx1;
   DAZZ_DBX   _dbx2, *dbx2 = &_dbx2;
-  DAZZ_DB *db1 = &dbx1->db;
-  DAZZ_DB *db2 = &dbx2->db;
-  Overlap   _ovl, *ovl = &_ovl;
-  Alignment _aln, *aln = &_aln;
+  Overlap   _ovl;
+  Alignment _aln;
+
+  db1 = &dbx1->db;
+  db2 = &dbx2->db;
+  ovl = &_ovl;
+  aln = &_aln;
 
   FILE   *input;
   int64   novl;
-  int     tspace, tbytes, small;
   int     reps, *pts;
   int     input_pts;
-
-  int     ALIGN, CARTOON, REFERENCE, FLIP;
-  int     INDENT, WIDTH, BORDER, UPPERCASE;
-  int     ISTWO;
-  int     MAP;
-  int     FALCON, OVERLAP, M4OVL;
-  // XXX: MAX_HIT_COUNT should be renamed
-  int     SEED_MIN, MAX_HIT_COUNT, SKIP;
-  int     PRELOAD;
-
-  int WRITE_MAPPING_COORDS;
 
   //  Process options
 
@@ -231,6 +296,7 @@ int main(int argc, char *argv[])
 
     FALCON    = 0;
     M4OVL     = 0;
+    IGNORE_INDELS = 0;
     SEED_MIN  = 8000;
     SKIP      = 0;
 
@@ -247,7 +313,7 @@ int main(int argc, char *argv[])
       if (argv[i][0] == '-')
         switch (argv[i][1])
         { default:
-            ARG_FLAGS("smfocargUFMPy")
+            ARG_FLAGS("smfocargUFMPIy")
             break;
           case 'i':
             ARG_NON_NEGATIVE(INDENT,"Indent")
@@ -282,6 +348,7 @@ int main(int argc, char *argv[])
     SKIP      = flags['s'];
     GROUP     = flags['g'];
     PRELOAD   = flags['P']; // Preload DB reads, if possible.
+    IGNORE_INDELS = flags['I']; // Ignore indels. Accuracy counts mismatches only. With "-m" flag.
     WRITE_MAPPING_COORDS = flags['y'];
 
     if (argc <= 2)
@@ -510,8 +577,6 @@ int main(int argc, char *argv[])
   //  Read the file and display selected records
 
   { int        j;
-    uint16    *trace;
-    Work_Data *work;
     int        tmax;
     int        in, npt, idx, ar;
     int64      tps;
@@ -519,7 +584,6 @@ int main(int argc, char *argv[])
     char       buffer[131072];
     int        skip_rest = 0;
 
-    char      *abuffer, *bbuffer;
     int        ar_wide, br_wide;
     int        ai_wide, bi_wide;
     int        mn_wide, mx_wide;
@@ -528,7 +592,7 @@ int main(int argc, char *argv[])
     int        hit_count;
 
     aln->path = &(ovl->path);
-    if (ALIGN || REFERENCE || FALCON)
+    if (ALIGN || REFERENCE || FALCON || (M4OVL && IGNORE_INDELS))
       { work = New_Work_Data();
         abuffer = New_Read_Buffer(db1);
         bbuffer = New_Read_Buffer(db2);
@@ -722,9 +786,6 @@ int main(int argc, char *argv[])
           {
             int64 bbpos, bepos;
             double acc;
-
-
-
             if (COMP(ovl->flags)) {
                 bbpos = (int64) aln->blen - (int64) ovl->path.bepos;
                 bepos = (int64) aln->blen - (int64) ovl->path.bbpos;
@@ -732,12 +793,19 @@ int main(int argc, char *argv[])
                 bbpos = (int64) ovl->path.bbpos;
                 bepos = (int64) ovl->path.bepos;
             }
-            acc = 100-(200. * ovl->path.diffs)/( ovl->path.aepos - ovl->path.abpos + ovl->path.bepos - ovl->path.bbpos
-);
-            printf("%09lld %09lld %lld %5.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos
-, acc);
+            double const ovllen = 0.5*((ovl->path.aepos - ovl->path.abpos) + (ovl->path.bepos - ovl->path.bbpos));
+            int diffs = aln->path->diffs;
+            if (IGNORE_INDELS) {
+              /* Compute the detailed alignment from trace points so that aln->path->tlen
+               *     is equal to the number of indels in the alignment. */
+              Compute_Detailed_Alignment(small);
+              diffs -= (aln->path->tlen);
+            }
+            acc = 100-(100. * diffs)/ovllen;
+            printf("%09lld %09lld %lld %0.2f ", (int64) ovl->aread, (int64) ovl->bread,  (int64) bbpos - (int64) bepos, acc);
             printf("0 %lld %lld %lld ", (int64) ovl->path.abpos, (int64) ovl->path.aepos, (int64) aln->alen);
             printf("%d %lld %lld %lld ", COMP(ovl->flags), bbpos, bepos, (int64) aln->blen);
+
             if ( ((int64) aln->blen < (int64) aln->alen) && ((int64) ovl->path.bbpos < 1) && ((int64) aln->blen - (int64) ovl->path.bepos < 1) )
               {
                 printf("contains\n");
@@ -751,7 +819,6 @@ int main(int argc, char *argv[])
               {
                 printf("overlap\n");
               }
-
           }
         if (FALCON)
           {
@@ -818,55 +885,7 @@ int main(int argc, char *argv[])
 
         if (ALIGN || CARTOON || REFERENCE)
           { if (ALIGN || REFERENCE)
-              { char *aseq, *bseq;
-                int   amin,  amax;
-                int   bmin,  bmax;
-
-                if (FLIP)
-                  Flip_Alignment(aln,0);
-                if (small)
-                  Decompress_TraceTo16(ovl);
-
-                amin = ovl->path.abpos - BORDER;
-                if (amin < 0) amin = 0;
-                amax = ovl->path.aepos + BORDER;
-                if (amax > aln->alen) amax = aln->alen;
-                if (COMP(aln->flags))
-                  { bmin = (aln->blen-ovl->path.bepos) - BORDER;
-                    if (bmin < 0) bmin = 0;
-                    bmax = (aln->blen-ovl->path.bbpos) + BORDER;
-                    if (bmax > aln->blen) bmax = aln->blen;
-                  }
-                else
-                  { bmin = ovl->path.bbpos - BORDER;
-                    if (bmin < 0) bmin = 0;
-                    bmax = ovl->path.bepos + BORDER;
-                    if (bmax > aln->blen) bmax = aln->blen;
-                  }
-
-                aseq = Load_Subread(db1,ovl->aread,amin,amax,abuffer,0);
-                bseq = Load_Subread(db2,ovl->bread,bmin,bmax,bbuffer,0);
-
-                aln->aseq = aseq - amin;
-                if (COMP(aln->flags))
-                  { Complement_Seq(bseq,bmax-bmin);
-                    aln->bseq = bseq - (aln->blen - bmax);
-                  }
-                else
-                  aln->bseq = bseq - bmin;
-
-                Compute_Trace_PTS(aln,work,tspace,GREEDIEST);
-
-                if (FLIP)
-                  { if (COMP(aln->flags))
-                      { Complement_Seq(aseq,amax-amin);
-                        Complement_Seq(bseq,bmax-bmin);
-                        aln->aseq = aseq - (aln->alen - amax);
-                        aln->bseq = bseq - bmin;
-                      }
-                    Flip_Alignment(aln,1);
-                  }
-              }
+              Compute_Detailed_Alignment(small);
             if (CARTOON)
               { printf("  (");
                 Print_Number(tps,tp_wide,stdout);
@@ -909,7 +928,7 @@ int main(int argc, char *argv[])
 
 
     free(trace);
-    if (ALIGN || FALCON)
+    if (NULL != work)
       { free(bbuffer-1);
         free(abuffer-1);
         Free_Work_Data(work);
