@@ -13,8 +13,8 @@ vpath %.c ${THISDIR}
 %: %.c
 
 all: ${ALL}
-daligner: radix.o filter.o
-daligner_p: radix.o filter_p.o
+daligner: lsd.sort.o filter.o
+daligner_p: lsd.sort.o filter_p.o
 LA4Falcon: DBX.o
 ${ALL}: libdazzdb.a
 
