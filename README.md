@@ -2,16 +2,25 @@
 
 ## _Author:  Gene Myers_
 ## _First:   April 10, 2016_
+## _Current: April 19, 2019_
 
 For typeset documentation, examples of use, and design philosophy please go to
 my [blog](https://dazzlerblog.wordpress.com/command-guides/daligner-command-reference-guide).
+ 
+### Version Numbers
+
+v1.0 has been released, but if you need to refer to a later revision
+from the stable master branch, please use ``v1.0.yyyymmdd`` where
+``yyyy-mm-dd`` is the date of the commit used. This is important for
+method details in scientific papers, and for software packaging
+(e.g. Conda, HomeBrew, or Linux distribution packages).
 
 The commands below permit one to find all significant local alignments between reads
 encoded in Dazzler database.  The assumption is that the reads are from a PACBIO RS II
 long read sequencer.  That is the reads are long and noisy, up to 15% on average.
 
 Recall that a database has a current partition that divides it into blocks of a size
-that can conveniently be handled by calling the "dalign" overlapper on all the pairs of
+that can conveniently be handled by calling the **daligner** overlapper on all the pairs of
 blocks producing a collection of .las local alignment files that can then be sorted and
 merged into an ordered sequence of sorted files containing all alignments between reads
 in the data set.  The alignment records are parsimonious in that they do not record an
@@ -19,24 +28,25 @@ alignment but simply a set of trace points, typically every 100bp or so, that al
 efficient reconstruction of alignments on demand.
 
 All programs add suffixes (e.g. .db, .las) as needed.
-For the commands that take multiple .las files as arguments, i.e. LAsort, LAmerge, LAindex, LAcat,
-and LAcheck, one can place a @-sign in the name, which is then interpreted as the sequence of files
+For the commands that take multiple .db or .las file blocks as arguments, i.e. **daligner**, **LAsort**, **LAmerge**, **LAcat**,
+and **LAcheck**, one can place a @-sign in the name, which is then interpreted as the sequence of files
 obtained by replacing the @-sign by 1, 2, 3, ... in sequence until a number is reached for
 which no file matches.  One can also place a @-sign followed by an integer, say, i, in which
-case the sequence starts at i.  Lastly, one can also place @i-j where i and j are integers, in
+case the sequence starts at i.  Lastly, one can also use @i-j where i and j are integers, in
 which case the sequence is from i to j, inclusive.
 
 The formal UNIX command line
 descriptions and options for the DALIGNER module commands are as follows:
 
 ```
-1. daligner [-vabAI]
-       [-k<int(14)>] [-w<int(6)>] [-h<int(35)>] [-t<int>] [-M<int>] [-P<dir(/tmp)>]
-       [-e<double(.70)] [-l<int(1000)] [-s<int(100)>] [-H<int>] [-T<int(4)>]
-       [-m<track>]+ <subject:db|dam> <target:db|dam> ...
+1. daligner [-vaAI]
+       [-k<int(16)>] [-%<int(28)>] [-h<int(50)>] [-w<int(6)>] [-t<int>] [-M<int>]
+       [-e<double(.75)] [-l<int(1500)] [-s<int(100)>] [-H<int>]
+       [-T<int(4)>] [-P<dir(/tmp)>] [-m<track>]+
+       <subject:db|dam> <target:db|dam> ...
 ```
 
-Compare sequences in the trimmed \<subject\> block against those in the list of \<target\>
+Compare sequences in the trimmed *\<subject\>* block against those in the list of *\<target\>*
 blocks searching for local alignments involving at least -l base pairs (default 1000)
 or more, that have an average correlation rate of -e (default 70%).  The local
 alignments found will be output in a sparse encoding where a trace point on the
@@ -44,18 +54,13 @@ alignment is recorded every -s base pairs of the a-read (default 100bp). Reads a
 compared in both orientations and local alignments meeting the criteria are output to
 one of several created files described below.  The -v option turns on a verbose
 reporting mode that gives statistics on each major step of the computation.  The
-program runs with 4 threads by default, but this may be set to any power of 2 with
+program runs with 4 threads by default, but this may be set to any positive value with
 the -T option.
 
-The options -k, -h, and -w control the initial filtration search for possible matches
+The options -k, -%, -h, and -w control the initial filtration search for possible matches
 between reads.  Specifically, our search code looks for a pair of diagonal bands of
-width 2<sup>w</sup> (default 2<sup>6</sup> = 64) that contain a collection of exact matching k-mers
-(default 14) between the two reads, such that the total number of bases covered by the
-k-mer hits is h (default 35). k cannot be larger than 32 in the current implementation.
-If the -b option is set, then the daligner assumes the data has a strong compositional
-bias (e.g. >65% AT rich), and at the cost of a bit more time, dynamically adjusts k-mer
-sizes depending on compositional bias, so that the mers used have an effective
-specificity of 4<sup>k</sup>.
+width 2<sup>w</sup> (default 2<sup>6</sup> = 64) that contain a collection of matching k-mers
+(default 16) in the lowest %-percentifle between the two reads, such that the total number of bases covered by the k-mer hits is h (default 50). k cannot be larger than 32 in the current implementation.  *These parameters will shortly be superceded with a more intuitive interface.*
 
 If there are one or more interval tracks specified with the -m option, then the reads
 of the DB or DB's to which the mask applies are soft masked with the union of the
@@ -86,8 +91,8 @@ where the a-read is in X and the b-read is in Y are reported, and if X = Y then 
 further reports only those overlaps where the a-read index is less than the b-read index.
 In either case, if the -I option is set ("I" for "identity") then when X = Y, overlaps
 between different portions of the same read will also be found and reported.  In summary,
-the command "daligner -A X Y" produces a single file X.Y..las and "daligner X Y" produces
-2 files X.Y..las and Y.X.las (unless X=Y in which case only a single file, X.X.las, is
+the command `daligner -A X Y` produces a single file `X.Y.las` and `daligner X Y` produces
+2 files `X.Y.las` and `Y.X.las` (unless X=Y in which case only a single file, `X.X.las`, is
 produced).  The overlap records in one of these files are sorted as described for LAsort.
 The -a option to daligner is passed directly through to LAsort which is actually called
 as a sub-process to produce the sorted file.
@@ -105,8 +110,8 @@ reports overlaps where the a-read is over N base-pairs long.
 
 While the default parameter settings are good for raw Pacbio data, daligner can be used
 for efficiently finding alignments in corrected reads or other less noisy reads. For
-example, for mapping applications against .dams we run "daligner -k20 -h60 -e.85" and
-on corrected reads, we typically run "daligner -k25 -w5 -h60 -e.95 -s500" and at
+example, for mapping applications against .dams we run `daligner -k20 -h60 -e.85` and
+on corrected reads, we typically run `daligner -k25 -w5 -h60 -e.95 -s500` and at
 these settings it is very fast.
 
 ```
@@ -245,8 +250,10 @@ scoring chain and + indicates an alternate near optimal chain (controlled by the
 -n parameter to damapper).  Each additional LA of a chain is marked with a - character.
 
 ```
-5. LAdump [-cdtlo] <src1:db|dam> [ <src2:db|dam> ]
+5a. LAdump [-cdtlo] <src1:db|dam> [ <src2:db|dam> ]
                    <align:las> [ <reads:FILE> | <reads:range> ... ]
+
+5b. dumpLA <align.las>
 ```
 
 Like LAshow, LAdump allows one to display the local alignments (LAs) of a subset of the
@@ -287,23 +294,26 @@ They give size information about what is contained in the output.  Specifically,
 '+ X #' gives the total number of LAs (X=P), or the total number of trace point
 intervals (X=T) in the file .  '% X #' gives the maximum number of LAs (X=P) or
 the maximum number of trace point intervals (X=T) in a given *pile* (collection of
-LAs all with the same a-read (applies only to sorted .las files).  Finally @ T #
+LAs all with the same a-read (applies only to sorted .las files).  A final line: '@ T #',
 gives the maximum # of trace point intervals in any trace within the file.
+After these lines and before the start of the lines describing alignment records is a
+single line of the form 'X #' where the number is the trace point spacing for all
+alignments.
+
+The command dumpLA reads a 1-code file from the standard input and if possible produces a .las
+file for it.  The 1-code file is any legitimate coding of alignments as might be produced by LAdump.
+The 1-code file must contain the P-, C-, and T-lines as well as the X-line and the header lines
+beginning with +, %, or @.  So for example, a 1-code file produced by LAdump with the -c and -t
+options is invertible.
 
 ```
-6. LAindex -v <source:las> ...
+6a. LAa2b
+6b. LAb2a
 ```
 
-LAindex takes a series of one or more sorted .las files and produces a "pile
-index" for each one.  If the input file has name "X.las", then the name of its
-index file is ".X.las.idx".  For each A-read pile encoded in the .las file,
-the index contains the offset to the first local alignment with A in the file.
-The index starts with four 64-bit integers that encode the numbers % P, + T, % T,
-and @ T described for LAdump above, and then an offset for each pile beginning
-with the first A-read in the file (which may not be read 0). The index is meant
-to allow programs that process piles to more efficiently read just the piles
-they need at any momment int time, as opposed to having to sequentially scan
-through the .las file.
+Pipes (stdin to stdout) that convert an ASCII output produced by LAdump into a compressed
+binary representation (LAa2b) and vice verse (LAb2a).  The idea is to save disk space by
+keeping the dumps in a more compressed format.
 
 ```
 7. LAcat [-v] <source:las> ... > <target>.las
@@ -351,9 +361,9 @@ information, and if it does, then it checks the validity of chains and checks th
 sorting order of chains as a unit according to the -a option.
 
 ```
-10. HPC.daligner [-vbad] [-t<int>] [-w<int(6)>] [-l<int(1000)] [-s<int(100)] [-M<int>]
+10. HPC.daligner [-vad] [-t<int>] [-w<int(6)>] [-l<int(1500)] [-s<int(100)] [-M<int>]
                     [-P<dir(/tmp)>] [-B<int(4)>] [-T<int(4)>] [-f<name>]
-                  ( [-k<int(14)>] [-h<int(35)>] [-e<double(.70)] [-H<int>]
+                  ( [-k<int(16)>] [-h<int(50)>] [-e<double(.75)] [-H<int>]
                     [-k<int(20)>] [-h<int(50)>] [-e<double(.85)]  <ref:db|dam>  )
                     [-m<track>]+ <reads:db|dam> [<first:int>[-<last:int>]]
 ```

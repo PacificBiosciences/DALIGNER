@@ -64,20 +64,19 @@ daligner_lib = library(
   c_args : daligner_flags)
 
 daligner_exes = [
-  ['daligner', files(['filter.c'])],
+  ['daligner', files(['DB.c', 'lsd.sort.c', 'filter.c'])],
   ['HPC.daligner', []],
-  ['LAsort', []],
-  ['LAmerge', []],
-  ['LAsplit', []],
-  ['LAcat', []],
-  ['LAshow', []],
-  ['LAdump', []],
-  ['LAcheck', []],
-  ['LAindex', []],
-  ['daligner_p', files(['filter_p.c'])],
+  ['LAsort', ['DB.c']],
+  ['LAmerge', ['DB.c']],
+  ['LAsplit', ['DB.c']],
+  ['LAcat', ['DB.c']],
+  ['LAshow', ['DB.c']],
+  ['LAdump', ['DB.c']],
+  ['LAcheck', ['DB.c']],
+  ['daligner_p', files(['DB.c', 'lsd.sort.c', 'filter_p.c'])],
   ['LA4Falcon', files(['DBX.c'])],
-  ['LA4Ice', []],
-  ['DB2Falcon', []]]
+  ['LA4Ice', ['DB.c']],
+  ['DB2Falcon', ['DB.c']]]
 
 foreach i : daligner_exes
   executable(

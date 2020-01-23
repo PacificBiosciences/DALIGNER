@@ -250,10 +250,17 @@ int main(int argc, char *argv[])
   for (c = 2; c < argc; c++)
     { Block_Looper *parse;
       FILE *input;
+      char *root, *path;
 
-      parse = Parse_Block_Arg(argv[c]);
+      parse = Parse_Block_LAS_Arg(argv[c]);
 
-      clen += strlen(Block_Arg_Path(parse)) + strlen(Block_Arg_Root(parse)) + 30;
+      path = Block_Arg_Path(parse);
+      root = Block_Arg_Root(parse);
+
+      clen += strlen(path) + strlen(root) + 30;
+
+      free(root);
+      free(path);
 
       nfile[c] = 0;
       while ((input = Next_Block_Arg(parse)) != NULL)
@@ -283,7 +290,7 @@ int main(int argc, char *argv[])
     }
 
   if (VERBOSE)
-    { printf("  Merging %d files totalling ",fway);
+    { printf("  Merging %d files totaling ",fway);
       Print_Number(totl,0,stdout);
       printf(" records\n");
       fflush(stdout);
@@ -305,7 +312,7 @@ int main(int argc, char *argv[])
       fsum = 0;
       c = 2;
 
-      parse = Parse_Block_Arg(argv[c]);
+      parse = Parse_Block_LAS_Arg(argv[c]);
 
       pid = getpid();
       for (i = 1; i <= dim; i++)
@@ -328,7 +335,7 @@ int main(int argc, char *argv[])
 
               Free_Block_Arg(parse);
 
-              parse = Parse_Block_Arg(argv[c]);
+              parse = Parse_Block_LAS_Arg(argv[c]);
             }
           if (c < argc && fsum < cut)
             { int n = cut-fsum;
@@ -370,7 +377,7 @@ int main(int argc, char *argv[])
     { Block_Looper *parse;
       FILE  *input;
 
-      parse = Parse_Block_Arg(argv[c]);
+      parse = Parse_Block_LAS_Arg(argv[c]);
 
       while ((input = Next_Block_Arg(parse)) != NULL)
         { int64  novl;

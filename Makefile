@@ -1,13 +1,16 @@
 DEST_DIR = ~/bin
 
+# CFLAGS = -O0 -g -Wall -Wextra -Wno-unused-result -fno-strict-aliasing -fsanitize=address -fsanitize=undefined
+# Above is for debug out of bound addresses, must compile with -lASAN -lUBSAN if gcc instead of clang
+
 CFLAGS = -O3 -Wall -Wextra -Wno-unused-result -fno-strict-aliasing
 
-ALL = daligner HPC.daligner LAsort LAmerge LAsplit LAcat LAshow LAdump LAcheck LAindex
+ALL = daligner HPC.daligner LAsort LAmerge LAsplit LAcat LAshow LAdump LAcheck LAa2b LAb2a dumpLA
 
 all: $(ALL)
 
-daligner: daligner.c filter.c filter.h align.c align.h DB.c DB.h QV.c QV.h
-	gcc $(CFLAGS) -o daligner daligner.c filter.c align.c DB.c QV.c -lpthread -lm
+daligner: daligner.c filter.c filter.h lsd.sort.c lsd.sort.h align.c align.h DB.c DB.h QV.c QV.h
+	gcc $(CFLAGS) -o daligner daligner.c filter.c lsd.sort.c align.c DB.c QV.c -lpthread -lm
 
 HPC.daligner: HPC.daligner.c DB.c DB.h QV.c QV.h
 	gcc $(CFLAGS) -o HPC.daligner HPC.daligner.c DB.c QV.c -lm
@@ -33,16 +36,18 @@ LAsplit: LAsplit.c align.h DB.c DB.h QV.c QV.h
 LAcheck: LAcheck.c align.c align.h DB.c DB.h QV.c QV.h
 	gcc $(CFLAGS) -o LAcheck LAcheck.c align.c DB.c QV.c -lm
 
-LAupgrade.Dec.31.2014: LAupgrade.Dec.31.2014.c align.c align.h DB.c DB.h QV.c QV.h
-	gcc $(CFLAGS) -o LAupgrade.Dec.31.2014 LAupgrade.Dec.31.2014.c align.c DB.c QV.c -lm
+LAa2b: LAa2b.c align.c align.h DB.c DB.h QV.c QV.h
+	gcc $(CFLAGS) -o LAa2b LAa2b.c align.c DB.c QV.c -lm
 
-LAindex: LAindex.c align.c align.h DB.c DB.h QV.c QV.h
-	gcc $(CFLAGS) -o LAindex LAindex.c align.c DB.c QV.c -lm
+LAb2a: LAb2a.c align.c align.h DB.c DB.h QV.c QV.h
+	gcc $(CFLAGS) -o LAb2a LAb2a.c align.c DB.c QV.c -lm
+
+dumpLA: dumpLA.c align.c align.h DB.c DB.h QV.c QV.h
+	gcc $(CFLAGS) -o dumpLA dumpLA.c align.c DB.c QV.c -lm
 
 clean:
 	rm -f $(ALL)
 	rm -fr *.dSYM
-	rm -f LAupgrade.Dec.31.2014
 	rm -f daligner.tar.gz
 
 install:
