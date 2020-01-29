@@ -58,6 +58,8 @@ typedef struct            //  Hidden from the user, working space for each threa
     void   *points;
     int     tramax;
     void   *trace;
+    int     alnmax;
+    void   *alnpts;
   } _Work_Data;
 
 Work_Data *New_Work_Data()
@@ -72,6 +74,8 @@ Work_Data *New_Work_Data()
   work->points = NULL;
   work->tramax = 0;
   work->trace  = NULL;
+  work->alnmax = 0;
+  work->alnpts = NULL;
   work->celmax = 0;
   work->cells  = NULL;
   return ((Work_Data *) work);
@@ -103,6 +107,19 @@ static int enlarge_points(_Work_Data *work, int newmax)
   return (0);
 }
 
+static int enlarge_alnpts(_Work_Data *work, int newmax)
+{ void *vec;
+  int   max;
+
+  max = ((int) (newmax*1.2)) + 10000;
+  vec = Realloc(work->alnpts,max,"Enlarging point vector");
+  if (vec == NULL)
+    EXIT(1);
+  work->alnmax = max;
+  work->alnpts = vec;
+  return (0);
+}
+
 static int enlarge_trace(_Work_Data *work, int newmax)
 { void *vec;
   int   max;
@@ -126,6 +143,8 @@ void Free_Work_Data(Work_Data *ework)
     free(work->trace);
   if (work->points != NULL)
     free(work->points);
+  if (work->alnpts != NULL)
+    free(work->alnpts);
   free(work);
 }
 
@@ -151,7 +170,7 @@ void Free_Work_Data(Work_Data *ework)
 #define PATH_TOP  0x1000000000000000ll   //  Must be 1 << PATH_LEN
 #define PATH_INT  0x0fffffffffffffffll   //  Must be PATH_TOP-1
 #define TRIM_MASK 0x7fff                 //  Must be (1 << TRIM_LEN) - 1
-#define TRIM_MLAG 200                    //  How far can last trim point be behind best point
+#define TRIM_MLAG 250                    //  How far can last trim point be behind best point
 #define WAVE_LAG   30                    //  How far can worst point be behind the best point
 
 static double Bias_Factor[10] = { .690, .690, .690, .690, .780,
@@ -4327,6 +4346,7 @@ int Compute_Alignment(Alignment *align, Work_Data *ework, int task, int tspace)
   aseq = align->aseq+path->abpos;
   bseq = align->bseq+path->bbpos;
 
+  L = 0;
   if (task != DIFF_ONLY)
     { if (task == DIFF_TRACE || task == PLUS_TRACE)
         L = 2*(((path->aepos + (tspace-1))/tspace - path->abpos/tspace) + 1)*sizeof(uint16);
@@ -4334,13 +4354,13 @@ int Compute_Alignment(Alignment *align, Work_Data *ework, int task, int tspace)
         L = bsub*sizeof(int);
       else
         L = asub*sizeof(int);
-      if (L > work->tramax)
-        if (enlarge_trace(work,L))
+      if (L > work->alnmax)
+        if (enlarge_alnpts(work,L))
           EXIT(1);
     }
 
-  trace  = ((int *) work->trace);
-  strace = ((uint16 *) work->trace);
+  trace  = ((int *) work->alnpts);
+  strace = ((uint16 *) work->alnpts);
 
   if (asub > bsub)
     D = (4*asub+6)*sizeof(int);
